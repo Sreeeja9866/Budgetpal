@@ -218,6 +218,92 @@ def logout():
 def bad_access():
     return redirect(url_for('login'))
 
+@app.route('/security_questions', methods=['GET', 'POST'])
+def security_questions():
+    if request.method == 'POST':
+        security_question_1 = request.form['security_question_1']
+        security_answer_1 = request.form['security_answer_1']
+        security_question_2 = request.form['security_question_2']
+        security_answer_2 = request.form['security_answer_2']
+
+        if security_question_1 == security_question_2:
+            print("security questions are same")
+            flash('Please select different security questions')
+            return redirect(url_for('security_questions'))
+
+        hashed_answer_1 = generate_password_hash(security_answer_1)
+        hashed_answer_2 = generate_password_hash(security_answer_2)
+
+        db = get_db()
+        db.execute('UPDATE users SET security_question_1 = ?, security_answer_1 = ?, security_question_2 = ?, security_answer_2 = ? WHERE id = ?',
+                   (security_question_1, hashed_answer_1, security_question_2, hashed_answer_2, current_user.id))
+        db.commit()
+
+        flash('Security questions updated successfully')
+        return redirect(url_for('home'))
+
+    return render_template('security_questions.html')
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+@login_required
+def reset_password():
+    if request.method == 'POST':
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+
+        if new_password != confirm_password:
+            flash('Passwords do not match')
+            return redirect(url_for('reset_password'))
+
+        # Check password complexity
+        if len(new_password) < 8:
+            flash('Password must be at least 8 characters long')
+            return redirect(url_for('reset_password'))
+        if not any(char.isupper() for char in new_password):
+            flash('Password must contain at least one uppercase letter')
+            return redirect(url_for('reset_password'))
+        if not any(char.islower() for char in new_password):
+            flash('Password must contain at least one lowercase letter')
+            return redirect(url_for('reset_password'))
+        if not any(char.isdigit() for char in new_password):
+            flash('Password must contain at least one digit')
+            return redirect(url_for('reset_password'))
+
+        # Update the password in the database
+        hashed_password = generate_password_hash(new_password)
+        db = get_db()
+        db.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, current_user.id))
+        db.commit()
+
+        flash('Password reset successful')
+        return redirect(url_for('home'))
+
+    return render_template('reset_password.html')
+
+@app.route('/security_answers', methods=['GET', 'POST'])
+@login_required
+def security_answers():
+    if request.method == 'POST':
+        security_answer_1 = request.form['security_answer_1']
+        security_answer_2 = request.form['security_answer_2']
+
+        db = get_db()
+        user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+
+        if not check_password_hash(user['security_answer_1'], security_answer_1) or \
+           not check_password_hash(user['security_answer_2'], security_answer_2):
+            flash('Incorrect security answers')
+            return redirect(url_for('security_answers'))
+
+        return redirect(url_for('reset_password'))
+
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
+    security_question_1 = user['security_question_1']
+    security_question_2 = user['security_question_2']
+
+    return render_template('security_answers.html', security_question_1=security_question_1, security_question_2=security_question_2)
+
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
