@@ -304,6 +304,67 @@ def security_answers():
 
     return render_template('security_answers.html', security_question_1=security_question_1, security_question_2=security_question_2)
 
+@app.route('/add_expense', methods=['GET', 'POST'])
+@login_required
+def add_expense():
+    if request.method == 'POST':
+        date = request.form['date']
+        category = request.form['category']
+        amount = float(request.form['amount'])
+        description = request.form['description']
+
+        # Get the current user's ID
+        user_id = current_user.id
+
+        # Save the expense to the database
+        db = get_db()
+        db.execute('INSERT INTO expenses (user_id, date, category, amount, description) VALUES (?, ?, ?, ?, ?)',
+                   (user_id, date, category, amount, description))
+        db.commit()
+
+        flash('Expense added successfully')
+        return redirect(url_for('expenses'))
+
+    return render_template('add_expense.html')
+
+@app.route('/add_income', methods=['GET', 'POST'])
+@login_required
+def add_income():
+    if request.method == 'POST':
+        date = request.form['date']
+        category = request.form['category']
+        amount = float(request.form['amount'])
+        description = request.form['description']
+        frequency = request.form.get('frequency', 'one-time')  # Default to 'one-time' if not provided
+
+        # Get the current user's ID
+        user_id = current_user.id
+
+        # Save the income to the database
+        db = get_db()
+        db.execute('INSERT INTO incomes (user_id, date, category, amount, description, frequency) VALUES (?, ?, ?, ?, ?, ?)',
+                   (user_id, date, category, amount, description, frequency))
+        db.commit()
+
+        flash('Income added successfully')
+        return redirect(url_for('view_income'))
+
+    return render_template('add_expense.html') 
+
+@app.route('/expenses')
+@login_required
+def view_expenses():
+    db = get_db()
+    expenses = db.execute('SELECT * FROM expenses WHERE user_id = ? ORDER BY date DESC', (current_user.id,)).fetchall()
+    return render_template('expenses.html', expenses=expenses)
+
+@app.route('/income')
+@login_required
+def view_income():
+    db = get_db()
+    incomes = db.execute('SELECT * FROM incomes WHERE user_id = ? ORDER BY date DESC', (current_user.id,)).fetchall()
+    return render_template('income.html', incomes=incomes)
+
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
