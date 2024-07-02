@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Expense Manager - Home</title>
+        <link rel="stylesheet" type="text/css" href="../static/homepage.css">
+        <link rel="stylesheet" type="text/css" href="../static/header.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    </head>
+    <body>
+        {% include "header.html" %}
+        <main>
+            <div class="content-wrapper">
+                <section class="top-section">
+                    <h2>Track Your Expenses</h2>
+                    <p>Easily record and categorize your expenses to stay on top of your spending. Get a clear overview of where your money goes.</p>
+                    <a href="{{ url_for('add_expense') }}" class="button">Add Expense</a>
+                </section>
+            <div class="row">
+            <section>
+                <h2>Budget Management</h2>
+                <p>Create and manage budgets to take control of your finances. Set spending limits for different categories and track your progress towards your financial goals.</p>
+                <a href="" class="button">Manage Budgets</a>
+            </section>
+            <section>
+                <h2>Expense Insights</h2>
+                <p>Gain valuable insights into your spending patterns. Analyze your expenses, identify areas for optimization, and make informed financial decisions.</p>
+                <a href="" class="button">View Insights</a>
+            </section>
+            </div>
+            </div>
+        </main>
+        <footer>
+        &copy; 2024 Expense Manager. All rights reserved.
+        </footer>
+    </body>
+</html>

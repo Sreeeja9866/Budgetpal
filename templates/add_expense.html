@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Transaction</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.9/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="../static/header.css">
+    <link rel="stylesheet" type="text/css" href="../static/add_expense.css">
+    <style>
+        .frequency-group {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    {% include "header.html" %}
+    <main>
+        <div class="container">
+            <h2 id="transaction-heading">Add Expense</h2>
+            <div class="toggle-container">
+                <input type="checkbox" id="toggle" class="toggle-checkbox" onchange="toggleTransactionType()">
+                <label for="toggle" class="toggle-label">
+                    <span class="toggle-inner">
+                        <span class="toggle-income">Income</span>
+                        <span class="toggle-expense">Expense</span>
+                    </span>
+                    <span class="toggle-switch"></span>
+                </label>
+            </div>
+            <form id="transaction-form" action="{{ url_for('add_expense') }}" method="POST">
+                <input type="hidden" name="type" id="type" value="expense">
+                <div class="form-group">
+                    <label for="date">Date:</label>
+                    <input type="text" name="date" id="date" placeholder="Select date" required>
+                </div>
+                <div class="form-group">
+                    <label for="category">Category:</label>
+                    <select name="category" id="category" required>
+                        <option value="" disabled selected>Select category</option>
+                        <option value="Food">Food</option>
+                        <option value="Transportation">Transportation</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Amount:</label>
+                    <input type="number" name="amount" id="amount" step="0.01" min="0" placeholder="Enter amount" required>
+                </div>
+                <div class="form-group frequency-group" id="frequency-group">
+                    <label for="frequency">Frequency:</label>
+                    <select name="frequency" id="frequency">
+                        <option value="one-time">One-time</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="bi-weekly">Bi-weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <textarea name="description" id="description" placeholder="Enter description" rows="4"></textarea>
+                </div>
+                <button type="submit">Add Transaction</button>
+            </form>
+        </div>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.9/flatpickr.min.js"></script>
+    <script>
+        flatpickr("#date", {
+            dateFormat: "Y-m-d",
+            maxDate: "today"
+        });
+
+        function toggleTransactionType() {
+            var toggle = document.getElementById("toggle");
+            var typeInput = document.getElementById("type");
+            var transactionHeading = document.getElementById("transaction-heading");
+            var transactionForm = document.getElementById("transaction-form");
+            var categorySelect = document.getElementById("category");
+            var frequencyGroup = document.getElementById("frequency-group");
+
+            if (!toggle.checked) {
+                typeInput.value = "income";
+                transactionHeading.textContent = "Add Income";
+                transactionForm.action = "{{ url_for('add_income') }}";
+                frequencyGroup.style.display = "block";
+                // Update category options for income
+                categorySelect.innerHTML = `
+                    <option value="" disabled selected>Select category</option>
+                    <option value="Salary">Salary</option>
+                    <option value="Investment">Investment</option>
+                    <option value="Freelance">Freelance</option>
+                    <option value="Gift">Gift</option>
+                    <option value="Other">Other</option>
+                `;
+            } else {
+                typeInput.value = "expense";
+                transactionHeading.textContent = "Add Expense";
+                transactionForm.action = "{{ url_for('add_expense') }}";
+                frequencyGroup.style.display = "none";
+                // Update category options for expense
+                categorySelect.innerHTML = `
+                    <option value="" disabled selected>Select category</option>
+                    <option value="Food">Food</option>
+                    <option value="Transportation">Transportation</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Other">Other</option>
+                `;
+            }
+        }
+
+        // Call the function once on page load to set the initial state
+        toggleTransactionType();
+    </script>
+</body>
+</html>

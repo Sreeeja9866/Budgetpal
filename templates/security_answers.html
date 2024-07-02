@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Security Answers</title>
+    <link rel="stylesheet" type="text/css" href="../static/security_questions.css">
+    <link rel="stylesheet" type="text/css" href="../static/header.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    {% include "header.html" %}
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <ul class="flashes">
+        {% for message in messages %}
+            <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+{% endwith %}
+    <div class="container">
+        <h2>Security Answers</h2>
+        <form action="{{ url_for('security_answers') }}" method="POST">
+            <div class="form-group">
+                <label>{{ security_question_1 }}</label>
+                <input type="text" name="security_answer_1" placeholder="Enter your answer" required>
+            </div>
+            <div class="form-group">
+                <label>{{ security_question_2 }}</label>
+                <input type="text" name="security_answer_2" placeholder="Enter your answer" required>
+            </div>
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+</body>
+</html>
