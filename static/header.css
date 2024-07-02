@@ -1,0 +1,129 @@
+header {
+  background-color: #1a237e;
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-size: 32px;
+  font-weight: bold;
+}
+
+.nav-options {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.nav-options li {
+  margin-left: 20px;
+}
+
+.nav-options li a {
+  color: #c5cae9;
+  text-decoration: none;
+  font-size: 18px;
+  font-weight: bold;
+  transition: color 0.3s;
+  padding: 10px 20px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+}
+
+.nav-options li a:hover {
+  background-color: #c5cae9;
+  color: #1a237e;
+}
+
+.nav-options li a i {
+  margin-right: 5px;
+}
+
+/* Styles for the authentication options */
+#auth-option a {
+  background-color: #c5cae9;
+  color: #1a237e;
+}
+
+#auth-option a:hover {
+  background-color: #1a237e;
+  color: #c5cae9;
+}
+
+/* Styles for the dropdown menu */
+.dropdown {
+  position: relative;
+}
+
+.dropdown-toggle {
+  cursor: pointer;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  background-color: #fff;
+  min-width: 250px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  z-index: 1;
+  right: 0;
+  top: 100%;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.dropdown:hover .dropdown-menu {
+  display: block;
+}
+
+.dropdown-menu li {
+  margin-bottom: 15px;
+}
+
+.dropdown-menu .profile-pic {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 10px;
+  border: 2px solid #1a237e;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  background-color: #fff;
+  padding: 10px;
+}
+
+.dropdown-menu .username,
+.dropdown-menu .email {
+  display: block;
+  font-size: 18px;
+  color: #333;
+  margin-bottom: 5px;
+}
+
+.dropdown-menu a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background-color: #c5cae9;
+  color: #1a237e;
+  padding: 10px 20px;
+  border-radius: 30px;
+  transition: background-color 0.3s;
+}
+
+.dropdown-menu a:hover {
+  background-color: #1a237e;
+  color: #c5cae9;
+}
+
+.dropdown-menu a i {
+  margin-left: 5px;
+}

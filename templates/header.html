@@ -1,0 +1,43 @@
+<header>
+  <div class="logo">Expense Manager</div>
+  <ul class="nav-options">
+    <li><a href="/">Home</a></li>
+    <li><a href="{{ url_for('view_income')}}">Income</a></li>
+    <li><a href="{{ url_for('view_expenses') }}">Expenses</a></li>
+    
+    <li><a href="">Budgets</a></li>
+    <li><a href="">Reports</a></li>
+    <!-- <li><a href="">Settings</a></li> -->
+    {% if current_user.is_authenticated %}
+    {% if current_user.type == 'admin' %}
+          <li id="admin-option"><a href="{{ url_for('admin_panel') }}">Go To Admin View&nbsp;<i class="fas fa-sign-out-alt"></i></a></li>
+    {% endif %}
+      <li id="auth-option" class="dropdown">
+        <a href="#" class="dropdown-toggle">
+          <i class="fas fa-user"></i>&nbsp;{{ current_user.username }}&nbsp;<i class="fas fa-caret-down"></i>
+        </a>
+        <ul class="dropdown-menu">
+          <li><img src="../static/user.png" alt="Profile Picture" class="profile-pic"></li>
+          <li><span class="email">{{ current_user.email }}</span></li>
+          <li><a href="{{ url_for('security_answers')}}">Reset Password</a></li>
+          <li><a href="{{ url_for('logout') }}">Logout&nbsp;<i class="fas fa-sign-out-alt"></i></a></li>
+        </ul>
+      </li>
+    {% elif request.path == url_for('login') %}
+      <li id="auth-option"><a href="{{ url_for('signup') }}">Signup <i class="fas fa-user-plus"></i></a></li>
+    {% else %}
+      <li id="auth-option"><a href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i>Login </i></a></li>
+    {% endif %}
+  </ul>
+</header>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+  $(document).ready(function() {
+    $('.dropdown').hover(function() {
+      $(this).find('.dropdown-menu').stop(true, true).slideDown();
+    }, function() {
+      $(this).find('.dropdown-menu').stop(true, true).slideUp();
+    });
+  });
+</script>
