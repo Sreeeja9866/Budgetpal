@@ -4,6 +4,8 @@
 name: Python application
 
 on:
+  create:
+    branches: ["vakhil-98-ci-cd-assignment"]
   push:
     branches: [ "main" ]
   pull_request:
