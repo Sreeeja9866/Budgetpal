@@ -74,6 +74,27 @@ def init_db():
                                 FOREIGN KEY (user_id) REFERENCES users (id)
                             )
                         ''')
+                    
+                    # Check if the savings_goals table exists
+                    savings_goals_table_exists = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='savings_goals'").fetchone()
+                    if not savings_goals_table_exists:
+                        db.execute('''
+                            CREATE TABLE savings_goals (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                user_id INTEGER,
+                                name TEXT,
+                                target_amount DECIMAL(10, 2),
+                                current_amount DECIMAL(10, 2),
+                                target_date DATE,
+                                priority INTEGER,
+                                FOREIGN KEY (user_id) REFERENCES users (id)
+                            )
+                        ''')
+                    else:
+                        # Add priority column if it doesn't exist
+                        column_exists = db.execute("PRAGMA table_info(savings_goals)").fetchall()
+                        if 'priority' not in [column[1] for column in column_exists]:
+                            db.execute('ALTER TABLE savings_goals ADD COLUMN priority INTEGER DEFAULT 3')
                     db.commit()
 
 def get_db():
@@ -148,75 +169,6 @@ def signup():
         return redirect(url_for('security_questions'))
 
     return render_template('signup.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    referrer = request.referrer if request.referrer else 'None'
-    if referrer.split('/')[-1] not in ['signup', 'login']:
-        clear_flashes()
-        
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-
-        db = get_db()
-        user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-
-        if user:
-            if user['is_locked']:
-                lockout_time = datetime.strptime(user['lockout_time'], '%Y-%m-%d %H:%M:%S')
-                current_time = datetime.now()
-                remaining_time = lockout_time + timedelta(minutes=30) - current_time
-                if remaining_time.total_seconds() > 0:
-                    minutes, seconds = divmod(int(remaining_time.total_seconds()), 60)
-                    flash(f"Account locked. Try again in {minutes:02d}m:{seconds:02d}s")
-                    return redirect(url_for('login'))
-                else:
-                    db.execute('UPDATE users SET is_locked = 0, incorrect_attempts = 0, lockout_time = NULL WHERE id = ?', (user['id'],))
-                    db.commit()
-
-            if check_password_hash(user['password'], password):
-                user_obj = User(user['id'], user['fullname'], user['username'], user['email'])
-                login_user(user_obj)
-
-                # Check if the user has set up security questions
-                if not user['security_question_1'] or not user['security_question_2']:
-                    flash('Please set up security questions to proceed further')
-                    return redirect(url_for('security_questions'))
-
-                # Reset incorrect attempts on successful login
-                db.execute('UPDATE users SET incorrect_attempts = 0 WHERE id = ?', (user['id'],))
-                db.commit()
-
-                flash('Login successful')
-                return redirect(url_for('home'))
-            else:
-                # Increment incorrect attempts
-                incorrect_attempts = user['incorrect_attempts'] + 1
-                db.execute('UPDATE users SET incorrect_attempts = ? WHERE id = ?', (incorrect_attempts, user['id']))
-                db.commit()
-
-                remaining_attempts = 5 - incorrect_attempts
-                if incorrect_attempts >= 5:
-                    lockout_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    db.execute('UPDATE users SET is_locked = 1, lockout_time = ? WHERE id = ?', (lockout_time, user['id']))
-                    db.commit()
-                    flash("Account locked due to too many incorrect attempts. Try again after 30 minutes.")
-                else:
-                    flash(f"Invalid password. {remaining_attempts} attempt(s) remaining.")
-        else:
-            flash('Invalid User')
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('home'))
-
-@app.route('/bad_access')
-def bad_access():
-    return redirect(url_for('login'))
 
 @app.route('/security_questions', methods=['GET', 'POST'])
 def security_questions():
@@ -304,6 +256,75 @@ def security_answers():
 
     return render_template('security_answers.html', security_question_1=security_question_1, security_question_2=security_question_2)
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    referrer = request.referrer if request.referrer else 'None'
+    if referrer.split('/')[-1] not in ['signup', 'login']:
+        clear_flashes()
+        
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        db = get_db()
+        user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+
+        if user:
+            if user['is_locked']:
+                lockout_time = datetime.strptime(user['lockout_time'], '%Y-%m-%d %H:%M:%S')
+                current_time = datetime.now()
+                remaining_time = lockout_time + timedelta(minutes=30) - current_time
+                if remaining_time.total_seconds() > 0:
+                    minutes, seconds = divmod(int(remaining_time.total_seconds()), 60)
+                    flash(f"Account locked. Try again in {minutes:02d}m:{seconds:02d}s")
+                    return redirect(url_for('login'))
+                else:
+                    db.execute('UPDATE users SET is_locked = 0, incorrect_attempts = 0, lockout_time = NULL WHERE id = ?', (user['id'],))
+                    db.commit()
+
+            if check_password_hash(user['password'], password):
+                user_obj = User(user['id'], user['fullname'], user['username'], user['email'])
+                login_user(user_obj)
+
+                # Check if the user has set up security questions
+                if not user['security_question_1'] or not user['security_question_2']:
+                    flash('Please set up security questions to proceed further')
+                    return redirect(url_for('security_questions'))
+
+                # Reset incorrect attempts on successful login
+                db.execute('UPDATE users SET incorrect_attempts = 0 WHERE id = ?', (user['id'],))
+                db.commit()
+
+                flash('Login successful')
+                return redirect(url_for('home'))
+            else:
+                # Increment incorrect attempts
+                incorrect_attempts = user['incorrect_attempts'] + 1
+                db.execute('UPDATE users SET incorrect_attempts = ? WHERE id = ?', (incorrect_attempts, user['id']))
+                db.commit()
+
+                remaining_attempts = 5 - incorrect_attempts
+                if incorrect_attempts >= 5:
+                    lockout_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    db.execute('UPDATE users SET is_locked = 1, lockout_time = ? WHERE id = ?', (lockout_time, user['id']))
+                    db.commit()
+                    flash("Account locked due to too many incorrect attempts. Try again after 30 minutes.")
+                else:
+                    flash(f"Invalid password. {remaining_attempts} attempt(s) remaining.")
+        else:
+            flash('Invalid User')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('home'))
+
+@app.route('/bad_access')
+def bad_access():
+    return redirect(url_for('login'))
+
 @app.route('/add_expense', methods=['GET', 'POST'])
 @login_required
 def add_expense():
@@ -322,8 +343,11 @@ def add_expense():
                    (user_id, date, category, amount, description))
         db.commit()
 
+        # Recalculate savings goals progress
+        recalculate_savings_goals(user_id)
+
         flash('Expense added successfully')
-        return redirect(url_for('expenses'))
+        return redirect(url_for('view_expenses'))
 
     return render_template('add_expense.html')
 
@@ -346,10 +370,13 @@ def add_income():
                    (user_id, date, category, amount, description, frequency))
         db.commit()
 
+        # Recalculate savings goals progress
+        recalculate_savings_goals(user_id)
+
         flash('Income added successfully')
         return redirect(url_for('view_income'))
 
-    return render_template('add_expense.html') 
+    return render_template('add_expense.html')
 
 @app.route('/expenses')
 @login_required
@@ -364,6 +391,89 @@ def view_income():
     db = get_db()
     incomes = db.execute('SELECT * FROM incomes WHERE user_id = ? ORDER BY date DESC', (current_user.id,)).fetchall()
     return render_template('income.html', incomes=incomes)
+
+# Routes for Savings Goals
+@app.route('/savings_goals', methods=['GET'])
+@login_required
+def savings_goals():
+    db = get_db()
+    goals_data = db.execute('SELECT * FROM savings_goals WHERE user_id = ? ORDER BY priority, target_date', (current_user.id,)).fetchall()
+    
+    goals = []
+    for goal in goals_data:
+        goal_dict = dict(goal)
+        goal_dict['progress'] = (goal_dict['current_amount'] / goal_dict['target_amount']) * 100 if goal_dict['target_amount'] > 0 else 0
+        goal_dict['progress'] = round(goal_dict['progress'], 2)
+        goals.append(goal_dict)
+    
+    return render_template('savings_goals.html', savings_goals=goals)
+
+
+@app.route('/add_savings_goal', methods=['POST'])
+@login_required
+def add_savings_goal():
+    goal_name = request.form['goal_name']
+    target_amount = float(request.form['target_amount'])
+    target_date = request.form['target_date']
+    priority = int(request.form['priority'])
+
+    if target_amount <= 0:
+        flash('Target amount must be greater than zero')
+        return redirect(url_for('savings_goals'))
+
+    if datetime.strptime(target_date, '%Y-%m-%d').date() < datetime.now().date():
+        flash('Target date must be in the future')
+        return redirect(url_for('savings_goals'))
+
+    if priority < 1 or priority > 5:
+        flash('Priority must be between 1 and 5')
+        return redirect(url_for('savings_goals'))
+
+    db = get_db()
+    db.execute('INSERT INTO savings_goals (user_id, name, target_amount, current_amount, target_date, priority) VALUES (?, ?, ?, 0, ?, ?)',
+               (current_user.id, goal_name, target_amount, target_date, priority))
+    db.commit()
+
+    recalculate_savings_goals(current_user.id)
+
+    flash('Savings goal added successfully')
+    return redirect(url_for('savings_goals'))
+
+def recalculate_savings_goals(user_id):
+    db = get_db()
+    
+    total_income = db.execute('SELECT SUM(amount) as total FROM incomes WHERE user_id = ?', (user_id,)).fetchone()['total'] or 0
+    total_expenses = db.execute('SELECT SUM(amount) as total FROM expenses WHERE user_id = ?', (user_id,)).fetchone()['total'] or 0
+    
+    available_amount = total_income - total_expenses
+    
+    goals = db.execute('SELECT * FROM savings_goals WHERE user_id = ? ORDER BY priority, target_date', (user_id,)).fetchall()
+    
+    if available_amount > 0:
+        # Calculate total weighted target amount
+        total_weighted_target = sum(goal['target_amount'] * (6 - goal['priority']) for goal in goals)
+        
+        for goal in goals:
+            # Calculate the weighted percentage this goal contributes to the total
+            weight = 6 - goal['priority']  # Invert priority so that 1 has the highest weight
+            goal_percentage = (goal['target_amount'] * weight) / total_weighted_target if total_weighted_target > 0 else 0
+            
+            # Calculate the amount to allocate to this goal
+            amount_to_allocate = available_amount * goal_percentage
+            
+            # Update the current amount, ensuring it doesn't exceed the target
+            new_amount = min(amount_to_allocate, goal['target_amount'])
+            
+            # Update the database
+            db.execute('UPDATE savings_goals SET current_amount = ? WHERE id = ?', (new_amount, goal['id']))
+            
+            if new_amount == goal['target_amount']:
+                flash(f"Congratulations! You've achieved your savings goal: {goal['name']}")
+    else:
+        # If available amount is negative or zero, reset all goals to zero
+        db.execute('UPDATE savings_goals SET current_amount = 0 WHERE user_id = ?', (user_id,))
+    
+    db.commit()
 
 if __name__ == '__main__':
     init_db()
