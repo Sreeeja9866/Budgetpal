@@ -5,8 +5,8 @@
     <li><a href="{{ url_for('view_income')}}">Income</a></li>
     <li><a href="{{ url_for('view_expenses') }}">Expenses</a></li>
     
-    <li><a href="">Budgets</a></li>
-    <li><a href="">Reports</a></li>
+    <li><a href="{{ url_for('savings_goals') }}">Savings</a></li>
+    <li><a href="{{ url_for('get_report') }}">Reports</a></li>
     <!-- <li><a href="">Settings</a></li> -->
     {% if current_user.is_authenticated %}
     {% if current_user.type == 'admin' %}

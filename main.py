@@ -1,8 +1,20 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, g, session, jsonify
+import matplotlib
+matplotlib.use('Agg')  # Use the 'Agg' backend
+import matplotlib.pyplot as plt
+from io import BytesIO, TextIOWrapper
+import base64
+from flask import Flask, render_template, request, redirect, url_for, flash, g, session, jsonify, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import csv
+from weasyprint import HTML, CSS
+from weasyprint.text.fonts import FontConfiguration
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -474,6 +486,201 @@ def recalculate_savings_goals(user_id):
         db.execute('UPDATE savings_goals SET current_amount = 0 WHERE user_id = ?', (user_id,))
     
     db.commit()
+
+# report routes
+@app.route('/get_report', methods=['GET', 'POST'])
+@login_required
+def get_report():
+    if request.method == 'POST':
+        start_date = request.form['start_date']
+        end_date = request.form['end_date']
+        report_type = request.form['report_type']
+        
+        # Generate report data
+        report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
+        
+        # Generate charts
+        income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
+        expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
+        
+        return render_template('report.html', 
+                               report_data=report_data, 
+                               income_chart=income_chart, 
+                               expense_chart=expense_chart,
+                               start_date=start_date,
+                               end_date=end_date,
+                               report_type=report_type,
+                               is_pdf=False)
+    
+    return render_template('get_report.html')
+
+@app.route('/export_report/<format>', methods=['POST'])
+@login_required
+def export_report(format):
+    start_date = request.form['start_date']
+    end_date = request.form['end_date']
+    report_type = request.form['report_type']
+    
+    # Generate report data
+    report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
+    
+    if format == 'pdf':
+        try:
+            # Generate charts
+            income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
+            expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
+            
+            # Generate PDF
+            pdf_buffer = generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart)
+            
+            return send_file(
+                pdf_buffer,
+                as_attachment=True,
+                download_name='financial_report.pdf',
+                mimetype='application/pdf'
+            )
+        except Exception as e:
+            app.logger.error(f"Error generating PDF report: {str(e)}")
+            flash('An error occurred while generating the PDF report. Please try again.', 'error')
+            return redirect(url_for('generate_report'))
+        
+    elif format == 'csv':
+        try:
+            # Generate CSV
+            csv_buffer = generate_csv_report(report_data)
+            
+            return send_file(
+                csv_buffer,
+                as_attachment=True,
+                download_name='financial_report.csv',
+                mimetype='text/csv'
+            )
+        except Exception as e:
+            app.logger.error(f"Error generating CSV report: {str(e)}")
+            flash('An error occurred while generating the CSV report. Please try again.', 'error')
+            return redirect(url_for('generate_report'))
+    
+    else:
+        flash('Invalid export format', 'error')
+        return redirect(url_for('generate_report'))
+    
+def generate_report_data(user_id, start_date, end_date, report_type):
+    db = get_db()
+    
+    income_data = db.execute('''
+        SELECT category, SUM(amount) as total
+        FROM incomes
+        WHERE user_id = ? AND date BETWEEN ? AND ?
+        GROUP BY category
+    ''', (user_id, start_date, end_date)).fetchall()
+    
+    expense_data = db.execute('''
+        SELECT category, SUM(amount) as total
+        FROM expenses
+        WHERE user_id = ? AND date BETWEEN ? AND ?
+        GROUP BY category
+    ''', (user_id, start_date, end_date)).fetchall()
+    
+    savings_data = db.execute('''
+        SELECT name, current_amount, target_amount
+        FROM savings_goals
+        WHERE user_id = ?
+    ''', (user_id,)).fetchall()
+    
+    return {
+        'income_by_category': {row['category']: row['total'] for row in income_data},
+        'expenses_by_category': {row['category']: row['total'] for row in expense_data},
+        'savings_goals': [{
+            'name': row['name'],
+            'current_amount': row['current_amount'],
+            'target_amount': row['target_amount'],
+            'progress': (row['current_amount'] / row['target_amount']) * 100 if row['target_amount'] > 0 else 0
+        } for row in savings_data],
+        'total_income': sum(row['total'] for row in income_data),
+        'total_expenses': sum(row['total'] for row in expense_data),
+    }
+
+def generate_chart(data, title):
+    plt.figure(figsize=(10, 6))
+    plt.pie(list(data.values()), labels=list(data.keys()), autopct='%1.1f%%')
+    plt.title(title)
+    
+    buffer = BytesIO()
+    plt.savefig(buffer, format='png')
+    buffer.seek(0)
+    image_png = buffer.getvalue()
+    buffer.close()
+    
+    graphic = base64.b64encode(image_png).decode('utf-8')
+    plt.close()  # Close the figure to free up memory
+    return graphic
+
+def generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart):
+    font_config = FontConfiguration()
+    html_content = render_template(
+        'report.html',
+        report_data=report_data,
+        start_date=start_date,
+        end_date=end_date,
+        report_type=report_type,
+        income_chart=income_chart,
+        expense_chart=expense_chart,
+        is_pdf=True
+    )
+    
+    css = CSS(string='''
+        @page {
+            size: letter;
+            margin: 1cm;
+        }
+        @media print {
+            .container {
+                margin: 0;
+                max-width: none;
+            }
+        }
+    ''', font_config=font_config)
+    
+    pdf_file = HTML(string=html_content, base_url=request.url_root).write_pdf(stylesheets=[css], font_config=font_config)
+    
+    return BytesIO(pdf_file)
+
+def generate_csv_report(report_data):
+    buffer = BytesIO()
+    text_wrapper = TextIOWrapper(buffer, encoding='utf-8-sig', write_through=True)
+    writer = csv.writer(text_wrapper, dialect='excel', quoting=csv.QUOTE_MINIMAL)
+
+    writer.writerow(['Income by Category'])
+    writer.writerow(['Category', 'Amount'])
+    for category, amount in report_data['income_by_category'].items():
+        writer.writerow([category, f"${amount:.2f}"])
+
+    writer.writerow([])
+    writer.writerow(['Expenses by Category'])
+    writer.writerow(['Category', 'Amount'])
+    for category, amount in report_data['expenses_by_category'].items():
+        writer.writerow([category, f"${amount:.2f}"])
+
+    writer.writerow([])
+    writer.writerow(['Savings Goals'])
+    writer.writerow(['Goal', 'Current Amount', 'Target Amount', 'Progress'])
+    for goal in report_data['savings_goals']:
+        writer.writerow([
+            goal['name'],
+            f"${goal['current_amount']:.2f}",
+            f"${goal['target_amount']:.2f}",
+            f"{goal['progress']:.2f}%"
+        ])
+
+    writer.writerow([])
+    writer.writerow(['Summary'])
+    writer.writerow(['Total Income', f"${report_data['total_income']:.2f}"])
+    writer.writerow(['Total Expenses', f"${report_data['total_expenses']:.2f}"])
+    writer.writerow(['Net Savings', f"${(report_data['total_income'] - report_data['total_expenses']):.2f}"])
+
+    text_wrapper.detach()  # Prevent closing of BytesIO when TextIOWrapper is garbage collected
+    buffer.seek(0)
+    return buffer
 
 if __name__ == '__main__':
     init_db()

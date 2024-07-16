@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Report</title>
+    {% if not is_pdf %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='header.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='report.css') }}">
+    {% else %}
+    <style>
+        :root {
+            --header-bg-color: #1a237e;
+            --header-text-color: #ffffff;
+            --header-accent-color: #ff4081;
+            --summary-bg-color: #3f51b5;
+            --summary-text-color: #ffffff;
+            --primary-color: #3f51b5;
+            --primary-light: #757de8;
+            --primary-dark: #002984;
+            --text-color: #333333;
+            --text-light: #757575;
+            --background-color: #f5f7fa;
+            --white: #ffffff;
+            --success-color: #4caf50;
+            --warning-color: #ffc107;
+            --error-color: #f44336;
+        }
+
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 40px auto;
+            background-color: var(--white);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .report-header {
+            background-color: var(--header-bg-color);
+            color: var(--header-text-color);
+            padding: 30px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .report-header h1 {
+            font-size: 32px;
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .report-meta {
+            display: flex;
+            gap: 30px;
+        }
+
+        .report-period, .report-type {
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .summary-section {
+            background-color: var(--summary-bg-color);
+            color: var(--summary-text-color);
+            padding: 30px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .summary-item {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-item h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .amount {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .income { color: var(--success-color); }
+        .expense { color: var(--error-color); }
+        .savings { color: var(--warning-color); }
+
+        h2 {
+            color: var(--primary-color);
+            font-size: 24px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 10px;
+        }
+
+        .chart-and-table {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            gap: 40px;
+        }
+
+        .chart {
+            flex: 1;
+            max-width: 50%;
+        }
+
+        .chart img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-container {
+            flex: 1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        th {
+            background-color: var(--primary-light);
+            color: var(--white);
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 8px;
+            margin-top: 5px;
+        }
+
+        .progress {
+            height: 100%;
+            background-color: var(--success-color);
+            transition: width 0.5s ease-in-out;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-left: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 20px;
+            }
+
+            .report-header {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 20px;
+            }
+
+            .report-meta {
+                margin-top: 15px;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-and-table {
+                flex-direction: column;
+            }
+
+            .chart, .table-container {
+                max-width: 100%;
+            }
+        }
+    </style>
+    {% endif %}
+</head>
+<body>
+    {% if not is_pdf %}
+    {% include "header.html" %}
+    {% endif %}
+    <main>
+        <div class="container">
+            <header class="report-header">
+                <h1>Financial Report</h1>
+                <div class="report-meta">
+                    <p class="report-period">Period: {{ start_date }} to {{ end_date }}</p>
+                    <p class="report-type">Report Type: {{ report_type }}</p>
+                </div>
+            </header>
+
+            <section class="summary-section">
+                <h2>Summary</h2>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <h3>Total Income</h3>
+                        <p class="amount income">${{ "%.2f"|format(report_data['total_income']) }}</p>
+                    </div>
+                    <div class="summary-item">
+                        <h3>Total Expenses</h3>
+                        <p class="amount expense">${{ "%.2f"|format(report_data['total_expenses']) }}</p>
+                    </div>
+                    <div class="summary-item">
+                        <h3>Net Savings</h3>
+                        <p class="amount savings">${{ "%.2f"|format(report_data['total_income'] - report_data['total_expenses']) }}</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="income-section">
+                <h2>Income by Category</h2>
+                <div class="chart-and-table">
+                    <div class="chart">
+                        <img src="data:image/png;base64,{{ income_chart }}" alt="Income Chart">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category, amount in report_data['income_by_category'].items() %}
+                                <tr>
+                                    <td>{{ category }}</td>
+                                    <td>${{ "%.2f"|format(amount) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="expenses-section">
+                <h2>Expenses by Category</h2>
+                <div class="chart-and-table">
+                    <div class="chart">
+                        <img src="data:image/png;base64,{{ expense_chart }}" alt="Expense Chart">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category, amount in report_data['expenses_by_category'].items() %}
+                                <tr>
+                                    <td>{{ category }}</td>
+                                    <td>${{ "%.2f"|format(amount) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="savings-goals-section">
+                <h2>Savings Goals</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Goal</th>
+                                <th>Current Amount</th>
+                                <th>Target Amount</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for goal in report_data['savings_goals'] %}
+                            <tr>
+                                <td>{{ goal['name'] }}</td>
+                                <td>${{ "%.2f"|format(goal['current_amount']) }}</td>
+                                <td>${{ "%.2f"|format(goal['target_amount']) }}</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress" style="width: {{ goal['progress'] }}%"></div>
+                                    </div>
+                                    <span class="progress-text">{{ "%.2f"|format(goal['progress']) }}%</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            {% if not is_pdf %}
+            <div class="export-buttons">
+                <form action="{{ url_for('export_report', format='pdf') }}" method="POST">
+                    <input type="hidden" name="start_date" value="{{ start_date }}">
+                    <input type="hidden" name="end_date" value="{{ end_date }}">
+                    <input type="hidden" name="report_type" value="{{ report_type }}">
+                    <button type="submit">Export as PDF</button>
+                </form>
+                <form action="{{ url_for('export_report', format='csv') }}" method="POST">
+                    <input type="hidden" name="start_date" value="{{ start_date }}">
+                    <input type="hidden" name="end_date" value="{{ end_date }}">
+                    <input type="hidden" name="report_type" value="{{ report_type }}">
+                    <button type="submit">Export as CSV</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

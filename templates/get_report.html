@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Financial Report</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.9/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="../static/header.css">
+    <link rel="stylesheet" type="text/css" href="../static/get_report.css">
+</head>
+<body>
+    {% include "header.html" %}
+    <main>
+        <div class="container">
+            <h2>Generate Financial Report</h2>
+            <form action="{{ url_for('get_report') }}" method="POST">
+                <div class="form-group">
+                    <label for="start_date">Start Date:</label>
+                    <input type="text" id="start_date" name="start_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="end_date">End Date:</label>
+                    <input type="text" id="end_date" name="end_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="report_type">Report Type:</label>
+                    <select id="report_type" name="report_type" required>
+                        <option value="category">By Category</option>
+                        <option value="frequency">By Frequency</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <button type="submit">Generate Report</button>
+            </form>
+        </div>
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.9/flatpickr.min.js"></script>
+    <script>
+        flatpickr("#start_date", {
+            dateFormat: "Y-m-d",
+        });
+        flatpickr("#end_date", {
+            dateFormat: "Y-m-d",
+        });
+    </script>
+</body>
+</html>
