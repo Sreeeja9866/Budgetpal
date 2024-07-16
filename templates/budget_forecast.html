@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Forecast</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='budget_forecast.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='header.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+<body>
+    {% include "header.html" %}
+    <main>
+        <div class="input-container">
+            <h2>Budget Forecast</h2>
+            <form id="forecast-form">
+                <div class="required-inputs">
+                    <div class="form-group">
+                        <label for="forecast-months">Forecast Period (months):</label>
+                        <input type="number" id="forecast-months" name="forecast_months" min="1" max="120" required>
+                    </div>
+                </div>
+                
+                <div class="optional-inputs">
+                    <h3>Optional Customization</h3>
+                    <p class="info-text">Leave fields blank to use your current financial data for calculations.</p>
+                    <div class="form-group">
+                        <label for="initial-balance">Initial Balance ($):</label>
+                        <input type="number" id="initial-balance" name="initial_balance" step="0.01" placeholder="Current balance will be used if left blank">
+                    </div>
+                    <div class="form-group">
+                        <label for="monthly-income">Monthly Income ($):</label>
+                        <input type="number" id="monthly-income" name="monthly_income" step="0.01" placeholder="Current average monthly income will be used if left blank">
+                    </div>
+                    <div class="form-group">
+                        <label for="monthly-expenses">Monthly Expenses ($):</label>
+                        <input type="number" id="monthly-expenses" name="monthly_expenses" step="0.01" placeholder="Current average monthly expenses will be used if left blank">
+                    </div>
+                    <div class="form-group">
+                        <label for="income-change">Monthly Income Change (%):</label>
+                        <input type="number" id="income-change" name="income_change" step="0.1" placeholder="0 if left blank">
+                    </div>
+                    <div class="form-group">
+                        <label for="expense-change">Monthly Expense Change (%):</label>
+                        <input type="number" id="expense-change" name="expense_change" step="0.1" placeholder="0 if left blank">
+                    </div>
+                    <div class="form-group">
+                        <label for="savings-goal">Monthly Savings Goal ($):</label>
+                        <input type="number" id="savings-goal" name="savings_goal" step="0.01" placeholder="Optional">
+                    </div>
+                    <div class="form-group">
+                        <label for="interest-rate">Annual Interest Rate on Savings (%):</label>
+                        <input type="number" id="interest-rate" name="interest_rate" step="0.01" placeholder="0 if left blank">
+                    </div>
+                </div>
+                <button type="submit" class="btn-primary">Generate Forecast</button>
+            </form>
+        </div>
+
+        <div id="forecast-results" style="display: none;">
+            <div class="chart-container">
+                <h3>Forecast Results</h3>
+                <button id="fullscreen-btn" class="btn-secondary"><i class="fas fa-expand"></i></button>
+                <div class="chart-wrapper">
+                    <canvas id="forecast-chart"></canvas>
+                </div>
+            </div>
+            <div id="forecast-summary"></div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let forecastChart = null;
+            let isFullscreen = false;
+
+            const forecastForm = document.getElementById('forecast-form');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const forecastResults = document.getElementById('forecast-results');
+            const forecastSummary = document.getElementById('forecast-summary');
+            const chartContainer = document.querySelector('.chart-container');
+            const chartWrapper = document.querySelector('.chart-wrapper');
+
+            if (forecastForm) {
+                forecastForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    const formData = new FormData(this);
+                    fetch('{{ url_for("budget_forecast") }}', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        displayForecast(data);
+                        scrollToResults();
+                    })
+                    .catch(error => console.error('Error:', error));
+                });
+            }
+
+            function displayForecast(data) {
+                const ctx = document.getElementById('forecast-chart');
+                if (!ctx) return;
+
+                const chartContext = ctx.getContext('2d');
+                
+                if (forecastChart) {
+                    forecastChart.destroy();
+                }
+
+                forecastChart = new Chart(chartContext, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Projected Balance',
+                                data: data.projected_balance,
+                                borderColor: 'rgb(75, 192, 192)',
+                                tension: 0.1
+                            },
+                            {
+                                label: 'Projected Income',
+                                data: data.projected_income,
+                                borderColor: 'rgb(54, 162, 235)',
+                                tension: 0.1
+                            },
+                            {
+                                label: 'Projected Expenses',
+                                data: data.projected_expenses,
+                                borderColor: 'rgb(255, 99, 132)',
+                                tension: 0.1
+                            },
+                            {
+                                label: 'Projected Savings',
+                                data: data.projected_savings,
+                                borderColor: 'rgb(153, 102, 255)',
+                                tension: 0.1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+
+                const summaryHtml = `
+                    <p>Final Projected Balance: $${data.projected_balance[data.projected_balance.length - 1].toFixed(2)}</p>
+                    <p>Total Projected Income: $${data.total_projected_income.toFixed(2)}</p>
+                    <p>Total Projected Expenses: $${data.total_projected_expenses.toFixed(2)}</p>
+                    <p>Total Projected Savings: $${data.total_projected_savings.toFixed(2)}</p>
+                    <p>Total Interest Earned: $${data.total_interest_earned.toFixed(2)}</p>
+                `;
+                if (forecastSummary) {
+                    forecastSummary.innerHTML = summaryHtml;
+                }
+                if (forecastResults) {
+                    forecastResults.style.display = 'block';
+                }
+            }
+
+            function scrollToResults() {
+                if (forecastResults) {
+                    forecastResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+
+            function toggleFullscreen() {
+                if (!chartContainer) return;
+
+                if (!document.fullscreenElement) {
+                    chartContainer.requestFullscreen().catch(err => {
+                        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener('click', toggleFullscreen);
+            }
+
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+            function handleFullscreenChange() {
+                isFullscreen = !!document.fullscreenElement;
+                
+                if (isFullscreen) {
+                    chartContainer.classList.add('fullscreen');
+                } else {
+                    chartContainer.classList.remove('fullscreen');
+                }
+
+                if (forecastChart) {
+                    setTimeout(() => {
+                        forecastChart.resize();
+                    }, 100);
+                }
+            }
+
+            // Resize observer to handle chart resizing
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    if (entry.target === chartContainer && forecastChart) {
+                        forecastChart.resize();
+                    }
+                }
+            });
+
+            if (chartContainer) {
+                resizeObserver.observe(chartContainer);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import matplotlib
-matplotlib.use('Agg')  # Use the 'Agg' backend
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 from io import BytesIO, TextIOWrapper
 import base64
@@ -371,7 +371,8 @@ def add_income():
         category = request.form['category']
         amount = float(request.form['amount'])
         description = request.form['description']
-        frequency = request.form.get('frequency', 'one-time')  # Default to 'one-time' if not provided
+        # Default to 'one-time' if not provided
+        frequency = request.form.get('frequency', 'one-time')  
 
         # Get the current user's ID
         user_id = current_user.id
@@ -462,21 +463,21 @@ def recalculate_savings_goals(user_id):
     goals = db.execute('SELECT * FROM savings_goals WHERE user_id = ? ORDER BY priority, target_date', (user_id,)).fetchall()
     
     if available_amount > 0:
-        # Calculate total weighted target amount
+        # Calculating total weighted target amount
         total_weighted_target = sum(goal['target_amount'] * (6 - goal['priority']) for goal in goals)
         
         for goal in goals:
-            # Calculate the weighted percentage this goal contributes to the total
-            weight = 6 - goal['priority']  # Invert priority so that 1 has the highest weight
+            # Calculating the weighted percentage this goal contributes to the total
+            weight = 6 - goal['priority'] 
             goal_percentage = (goal['target_amount'] * weight) / total_weighted_target if total_weighted_target > 0 else 0
             
-            # Calculate the amount to allocate to this goal
+            # Calculating the amount to allocate to this goal
             amount_to_allocate = available_amount * goal_percentage
             
-            # Update the current amount, ensuring it doesn't exceed the target
+            # Updating the current amount, ensuring it doesn't exceed the target
             new_amount = min(amount_to_allocate, goal['target_amount'])
             
-            # Update the database
+            # Updating the database
             db.execute('UPDATE savings_goals SET current_amount = ? WHERE id = ?', (new_amount, goal['id']))
             
             if new_amount == goal['target_amount']:
@@ -496,10 +497,10 @@ def get_report():
         end_date = request.form['end_date']
         report_type = request.form['report_type']
         
-        # Generate report data
+        # Generating report data
         report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
         
-        # Generate charts
+        # Generating charts
         income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
         expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
         
@@ -521,16 +522,16 @@ def export_report(format):
     end_date = request.form['end_date']
     report_type = request.form['report_type']
     
-    # Generate report data
+    # Generating report data
     report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
     
     if format == 'pdf':
         try:
-            # Generate charts
+            # Generating charts
             income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
             expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
             
-            # Generate PDF
+            # Generating PDF
             pdf_buffer = generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart)
             
             return send_file(
@@ -546,7 +547,7 @@ def export_report(format):
         
     elif format == 'csv':
         try:
-            # Generate CSV
+            # Generating CSV
             csv_buffer = generate_csv_report(report_data)
             
             return send_file(
@@ -639,7 +640,8 @@ def generate_pdf_report(report_data, start_date, end_date, report_type, income_c
                 max-width: none;
             }
         }
-    ''', font_config=font_config)
+        ''',
+        font_config=font_config)
     
     pdf_file = HTML(string=html_content, base_url=request.url_root).write_pdf(stylesheets=[css], font_config=font_config)
     
@@ -681,6 +683,114 @@ def generate_csv_report(report_data):
     text_wrapper.detach()  # Prevent closing of BytesIO when TextIOWrapper is garbage collected
     buffer.seek(0)
     return buffer
+
+from datetime import datetime, timedelta
+
+@app.route('/budget_forecast', methods=['GET', 'POST'])
+@login_required
+def budget_forecast():
+    if request.method == 'POST':
+        forecast_months = int(request.form['forecast_months'])
+        
+        # Get current user's financial data from the database
+        db = get_db()
+        total_income = db.execute('SELECT SUM(amount) as total FROM incomes WHERE user_id = ?', 
+                                  (current_user.id,)).fetchone()['total'] or 0
+        total_expenses = db.execute('SELECT SUM(amount) as total FROM expenses WHERE user_id = ?', 
+                                    (current_user.id,)).fetchone()['total'] or 0
+        current_balance = total_income - total_expenses
+
+        current_monthly_income = db.execute('SELECT AVG(amount) as avg FROM incomes WHERE user_id = ?', 
+                                            (current_user.id,)).fetchone()['avg'] or 0
+        current_monthly_expenses = db.execute('SELECT AVG(amount) as avg FROM expenses WHERE user_id = ?', 
+                                              (current_user.id,)).fetchone()['avg'] or 0
+
+        # Use form data if provided, otherwise use current data
+        initial_balance = float(request.form['initial_balance']) if request.form['initial_balance'] else current_balance
+        monthly_income = float(request.form['monthly_income']) if request.form['monthly_income'] else current_monthly_income
+        monthly_expenses = float(request.form['monthly_expenses']) if request.form['monthly_expenses'] else current_monthly_expenses
+        income_change = float(request.form['income_change']) / 100 if request.form['income_change'] else 0
+        expense_change = float(request.form['expense_change']) / 100 if request.form['expense_change'] else 0
+        savings_goal = float(request.form['savings_goal']) if request.form['savings_goal'] else 0
+        interest_rate = float(request.form['interest_rate']) / 100 / 12 if request.form['interest_rate'] else 0  # Convert annual rate to monthly
+
+        # Get recurring transactions
+        recurring_transactions = db.execute('''
+            SELECT type, amount, frequency, start_date, end_date
+            FROM recurring_transactions
+            WHERE user_id = ?
+        ''', (current_user.id,)).fetchall()
+
+        # Convert SQLite3.Row objects to dictionaries and parse dates
+        recurring_transactions = [dict(t) for t in recurring_transactions]
+        for transaction in recurring_transactions:
+            transaction['start_date'] = datetime.strptime(transaction['start_date'], '%Y-%m-%d').date()
+            if transaction['end_date']:
+                transaction['end_date'] = datetime.strptime(transaction['end_date'], '%Y-%m-%d').date()
+            else:
+                transaction['end_date'] = None
+
+        labels = []
+        projected_balance = [initial_balance]
+        projected_income = []
+        projected_expenses = []
+        projected_savings = []
+        total_interest_earned = 0
+
+        start_date = datetime.now().date()
+
+        for month in range(1, forecast_months + 1):
+            labels.append(f'Month {month}')
+            
+            # Calculate base income and expenses for this month
+            month_income = monthly_income * (1 + income_change) ** month
+            month_expenses = monthly_expenses * (1 + expense_change) ** month
+            
+            # Add recurring transactions for this month
+            current_date = start_date + timedelta(days=30*month)
+            for transaction in recurring_transactions:
+                if transaction['start_date'] <= current_date and (transaction['end_date'] is None or transaction['end_date'] >= current_date):
+                    if transaction['frequency'] == 'monthly' or \
+                       (transaction['frequency'] == 'quarterly' and month % 3 == 0) or \
+                       (transaction['frequency'] == 'annually' and month % 12 == 0):
+                        if transaction['type'] == 'income':
+                            month_income += transaction['amount']
+                        else:
+                            month_expenses += transaction['amount']
+            
+            # Calculate savings (consider savings goal if set)
+            month_savings = max(month_income - month_expenses, savings_goal)
+            
+            # Calculate interest earned this month
+            interest_earned = projected_balance[-1] * interest_rate
+            total_interest_earned += interest_earned
+            
+            # Calculate balance for this month
+            month_balance = projected_balance[-1] + month_savings + interest_earned
+            
+            projected_income.append(month_income)
+            projected_expenses.append(month_expenses)
+            projected_savings.append(month_savings)
+            projected_balance.append(month_balance)
+
+        # Remove the initial balance from projected_balance
+        projected_balance = projected_balance[1:]
+
+        forecast_data = {
+            'labels': labels,
+            'projected_balance': projected_balance,
+            'projected_income': projected_income,
+            'projected_expenses': projected_expenses,
+            'projected_savings': projected_savings,
+            'total_projected_income': sum(projected_income),
+            'total_projected_expenses': sum(projected_expenses),
+            'total_projected_savings': sum(projected_savings),
+            'total_interest_earned': total_interest_earned
+        }
+
+        return jsonify(forecast_data)
+
+    return render_template('budget_forecast.html')
 
 if __name__ == '__main__':
     init_db()
