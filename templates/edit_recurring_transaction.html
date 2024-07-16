@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Recurring Transaction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='header.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='recurring_transactions.css') }}">
+</head>
+<body>
+    {% include "header.html" %}
+    <main>
+        <div class="container">
+            <h1>Edit Recurring Transaction</h1>
+            <form method="post" class="transaction-form">
+                <div class="form-group">
+                    <label for="type">Type:</label>
+                    <select id="type" name="type" required>
+                        <option value="income" {% if transaction.type == 'income' %}selected{% endif %}>Income</option>
+                        <option value="expense" {% if transaction.type == 'expense' %}selected{% endif %}>Expense</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Amount:</label>
+                    <input type="number" id="amount" name="amount" step="0.01" value="{{ transaction.amount }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="category">Category:</label>
+                    <input type="text" id="category" name="category" value="{{ transaction.category }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="frequency">Frequency:</label>
+                    <select id="frequency" name="frequency" required>
+                        <option value="daily" {% if transaction.frequency == 'daily' %}selected{% endif %}>Daily</option>
+                        <option value="weekly" {% if transaction.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                        <option value="biweekly" {% if transaction.frequency == 'biweekly' %}selected{% endif %}>Bi-weekly</option>
+                        <option value="monthly" {% if transaction.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+                        <option value="quarterly" {% if transaction.frequency == 'quarterly' %}selected{% endif %}>Quarterly</option>
+                        <option value="annually" {% if transaction.frequency == 'annually' %}selected{% endif %}>Annually</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="start_date">Start Date:</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ transaction.start_date }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="end_date">End Date (Optional):</label>
+                    <input type="date" id="end_date" name="end_date" value="{{ transaction.end_date or '' }}">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description:</label>
+                    <textarea id="description" name="description">{{ transaction.description or '' }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Recurring Transaction</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
