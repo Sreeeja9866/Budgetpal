@@ -791,6 +791,203 @@ def budget_forecast():
         return jsonify(forecast_data)
 
     return render_template('budget_forecast.html')
+@app.route('/budget_management')
+@login_required
+def budget_management():
+    db = get_db()
+    
+    # Fetch summary data for the current month
+    current_date = datetime.now()
+    start_of_month = current_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end_of_month = (start_of_month + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+
+    total_income = db.execute('''
+        SELECT SUM(amount) as total
+        FROM incomes
+        WHERE user_id = ? AND date BETWEEN ? AND ?
+    ''', (current_user.id, start_of_month, end_of_month)).fetchone()['total'] or 0
+
+    total_expenses = db.execute('''
+        SELECT SUM(amount) as total
+        FROM expenses
+        WHERE user_id = ? AND date BETWEEN ? AND ?
+    ''', (current_user.id, start_of_month, end_of_month)).fetchone()['total'] or 0
+
+    recurring_transactions = db.execute('''
+        SELECT COUNT(*) as count
+        FROM recurring_transactions
+        WHERE user_id = ?
+    ''', (current_user.id,)).fetchone()['count']
+
+    savings_goals = db.execute('''
+        SELECT COUNT(*) as count
+        FROM savings_goals
+        WHERE user_id = ?
+    ''', (current_user.id,)).fetchone()['count']
+
+    summary = {
+        'total_income': total_income,
+        'total_expenses': total_expenses,
+        'balance': total_income - total_expenses,
+        'recurring_transactions': recurring_transactions,
+        'savings_goals': savings_goals
+    }
+
+    return render_template('budget_management.html', summary=summary)
+
+@app.route('/recurring_transactions')
+@login_required
+def recurring_transactions():
+    db = get_db()
+    transactions = db.execute('''
+        SELECT * FROM recurring_transactions 
+        WHERE user_id = ? 
+        ORDER BY start_date DESC
+    ''', (current_user.id,)).fetchall()
+    return render_template('recurring_transactions.html', transactions=transactions)
+
+@app.route('/add_recurring_transaction', methods=['GET', 'POST'])
+@login_required
+def add_recurring_transaction():
+    if request.method == 'POST':
+        transaction_type = request.form['type']
+        amount = float(request.form['amount'])
+        category = request.form['category']
+        frequency = request.form['frequency']
+        start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
+        end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date() if request.form['end_date'] else None
+        description = request.form['description']
+
+        db = get_db()
+        try:
+            db.execute('''
+                INSERT INTO recurring_transactions 
+                (user_id, type, amount, category, frequency, start_date, end_date, description) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (current_user.id, transaction_type, amount, category, frequency, start_date, end_date, description))
+            db.commit()
+            flash('Recurring transaction added successfully', 'success')
+            return redirect(url_for('recurring_transactions'))
+        except Exception as e:
+            flash(f'Error adding recurring transaction: {str(e)}', 'error')
+    
+    return render_template('add_recurring_transaction.html')
+
+@app.route('/edit_recurring_transaction/<int:transaction_id>', methods=['GET', 'POST'])
+@login_required
+def edit_recurring_transaction(transaction_id):
+    db = get_db()
+    transaction = db.execute('SELECT * FROM recurring_transactions WHERE id = ? AND user_id = ?', 
+                             (transaction_id, current_user.id)).fetchone()
+
+    if not transaction:
+        flash('Transaction not found', 'error')
+        return redirect(url_for('recurring_transactions'))
+
+    if request.method == 'POST':
+        transaction_type = request.form['type']
+        amount = float(request.form['amount'])
+        category = request.form['category']
+        frequency = request.form['frequency']
+        start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
+        end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date() if request.form['end_date'] else None
+        description = request.form['description']
+
+        try:
+            db.execute('''
+                UPDATE recurring_transactions 
+                SET type = ?, amount = ?, category = ?, frequency = ?, start_date = ?, end_date = ?, description = ?
+                WHERE id = ? AND user_id = ?
+            ''', (transaction_type, amount, category, frequency, start_date, end_date, description, transaction_id, current_user.id))
+            db.commit()
+            flash('Recurring transaction updated successfully', 'success')
+            return redirect(url_for('recurring_transactions'))
+        except Exception as e:
+            flash(f'Error updating recurring transaction: {str(e)}', 'error')
+
+    return render_template('edit_recurring_transaction.html', transaction=transaction)
+
+@app.route('/delete_recurring_transaction/<int:transaction_id>', methods=['POST'])
+@login_required
+def delete_recurring_transaction(transaction_id):
+    db = get_db()
+    try:
+        db.execute('DELETE FROM recurring_transactions WHERE id = ? AND user_id = ?', (transaction_id, current_user.id))
+        db.commit()
+        flash('Recurring transaction deleted successfully', 'success')
+    except Exception as e:
+        flash(f'Error deleting recurring transaction: {str(e)}', 'error')
+    return redirect(url_for('recurring_transactions'))
+
+def backup_database():
+    source = sqlite3.connect(DATABASE)
+    backup_dir = 'backups'
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_file = os.path.join(backup_dir, f'database_backup_{timestamp}.db')
+    
+    destination = sqlite3.connect(backup_file)
+    
+    with source:
+        source.backup(destination)
+    
+    destination.close()
+    source.close()
+    
+    # Maintain only the last 5 backups
+    backups = sorted([f for f in os.listdir(backup_dir) if f.startswith('database_backup_') and f.endswith('.db')])
+    while len(backups) > 5:
+        os.remove(os.path.join(backup_dir, backups.pop(0)))
+    
+    print(f"Database backed up to {backup_file}")
+
+def restore_from_backup():
+    backup_dir = 'backups'
+    if not os.path.exists(backup_dir):
+        print("No backups found.")
+        return
+    
+    backups = [f for f in os.listdir(backup_dir) if f.startswith('database_backup_') and f.endswith('.db')]
+    if not backups:
+        print("No backups found.")
+        return
+    
+    latest_backup = max(backups)
+    backup_file = os.path.join(backup_dir, latest_backup)
+    
+    source = sqlite3.connect(backup_file)
+    destination = sqlite3.connect(DATABASE)
+    
+    with source:
+        source.backup(destination)
+    
+    destination.close()
+    source.close()
+    
+    print(f"Database restored from {backup_file}")
+
+# Register the backup function to run when the application is about to exit
+@app.teardown_appcontext
+def backup_on_exit(exception):
+    backup_database()
+
+# Add a route for manual backup
+@app.route('/backup', methods=['POST'])
+@login_required
+def manual_backup():
+    backup_database()
+    flash('Database backed up successfully', 'success')
+    return redirect(url_for('budget_management'))
+
+# Add a route for manual restore
+@app.route('/restore', methods=['POST'])
+@login_required
+def manual_restore():
+    restore_from_backup()
+    flash('Database restored from the latest backup', 'success')
+    return redirect(url_for('budget_management'))
 
 if __name__ == '__main__':
     init_db()
