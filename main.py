@@ -15,8 +15,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, g, 
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-# from weasyprint import HTML, CSS
-# from weasyprint.text.fonts import FontConfiguration
+from weasyprint import HTML, CSS
+from weasyprint.text.fonts import FontConfiguration
 import heapq
 
 # Initialize Flask application
@@ -768,26 +768,26 @@ def export_report(format):
     report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
     
     if format == 'pdf':
-        # try:
-        #     # Generate charts for PDF
-        #     income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
-        #     expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
+        try:
+            # Generate charts for PDF
+            income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
+            expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
             
-        #     # Generate PDF
-        #     pdf_buffer = generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart)
+            # Generate PDF
+            pdf_buffer = generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart)
             
-        #     # Send PDF file
-        #     return send_file(
-        #         pdf_buffer,
-        #         as_attachment=True,
-        #         download_name='financial_report.pdf',
-        #         mimetype='application/pdf'
-        #     )
-        # except Exception as e:
-        #     app.logger.error(f"Error generating PDF report: {str(e)}")
-        #     flash('An error occurred while generating the PDF report. Please try again.', 'error')
-        #     return redirect(url_for('generate_report'))
-        pass
+            # Send PDF file
+            return send_file(
+                pdf_buffer,
+                as_attachment=True,
+                download_name='financial_report.pdf',
+                mimetype='application/pdf'
+            )
+        except Exception as e:
+            app.logger.error(f"Error generating PDF report: {str(e)}")
+            flash('An error occurred while generating the PDF report. Please try again.', 'error')
+            return redirect(url_for('generate_report'))
+        
     elif format == 'csv':
         try:
             # Generate CSV
@@ -868,39 +868,39 @@ def generate_chart(data, title):
     plt.close()  # Close the figure to free up memory
     return graphic
 
-# def generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart):
-#     """Generate a PDF report."""
-#     font_config = FontConfiguration()
-#     html_content = render_template(
-#         'report.html',
-#         report_data=report_data,
-#         start_date=start_date,
-#         end_date=end_date,
-#         report_type=report_type,
-#         income_chart=income_chart,
-#         expense_chart=expense_chart,
-#         is_pdf=True
-#     )
+def generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart):
+    """Generate a PDF report."""
+    font_config = FontConfiguration()
+    html_content = render_template(
+        'report.html',
+        report_data=report_data,
+        start_date=start_date,
+        end_date=end_date,
+        report_type=report_type,
+        income_chart=income_chart,
+        expense_chart=expense_chart,
+        is_pdf=True
+    )
     
-#     # Define CSS for PDF
-#     css = CSS(string='''
-#         @page {
-#             size: letter;
-#             margin: 1cm;
-#         }
-#         @media print {
-#             .container {
-#                 margin: 0;
-#                 max-width: none;
-#             }
-#         }
-#         ''',
-#         font_config=font_config)
+    # Define CSS for PDF
+    css = CSS(string='''
+        @page {
+            size: letter;
+            margin: 1cm;
+        }
+        @media print {
+            .container {
+                margin: 0;
+                max-width: none;
+            }
+        }
+        ''',
+        font_config=font_config)
     
-#     # Generate PDF
-#     pdf_file = HTML(string=html_content, base_url=request.url_root).write_pdf(stylesheets=[css], font_config=font_config)
+    # Generate PDF
+    pdf_file = HTML(string=html_content, base_url=request.url_root).write_pdf(stylesheets=[css], font_config=font_config)
     
-#     return BytesIO(pdf_file)
+    return BytesIO(pdf_file)
 
 def generate_csv_report(report_data):
     """Generate a CSV report."""
