@@ -11,13 +11,19 @@ import matplotlib
 matplotlib.use('Agg')  # Set the backend to Agg for non-interactive environments
 import matplotlib.pyplot as plt
 from io import BytesIO, TextIOWrapper
-from flask import Flask, render_template, request, redirect, url_for, flash, g, session, jsonify, send_file
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
-import heapq
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_file, g
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+
+from src.models import User, SavingsGoal, SavingsGoalPriorityQueue
+from src.database import get_db, init_db, DATABASE
+from src.authentication import auth
+from src.backup import backup, backup_database
+from src.reports import reports
+
+# from weasyprint import HTML, CSS
+# from weasyprint.text.fonts import FontConfiguration
+
 
 # Initialize Flask application
 app = Flask(__name__)
@@ -25,35 +31,22 @@ app = Flask(__name__)
 # Set a secret key for the application
 # This is used for securely signing the session cookie and can be used for other security-related needs
 app.secret_key = 'your_secret_key'
-
-# Define the database file path
-DATABASE = 'database.db'
-
+app.register_blueprint(auth)
+app.register_blueprint(backup)
+app.register_blueprint(reports)
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)  # Connect LoginManager to the Flask app
-login_manager.login_view = 'bad_access'  # Set the view to redirect to if login is required
+login_manager.login_view = 'auth.bad_access'  # Set the view to redirect to if login is required
 
 # ============================================================================
-# User Model and Authentication
+# loading users
 # ============================================================================
-
-# User model
-class User(UserMixin):
-    """User model for Flask-Login"""
-    def __init__(self, user_id, fullname, username, email):
-        self.id = user_id
-        self.fullname = fullname
-        self.username = username
-        self.email = email
-
-    def __repr__(self):
-        return f"<User id={self.id}, fullname='{self.fullname}', username='{self.username}', email='{self.email}'>"
 
 @login_manager.user_loader
 def load_user(user_id):
     """Load user by ID for Flask-Login"""
-    db = get_db()
+    db = get_db(app)
     user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     if user:
         user_obj = User(user['id'], user['fullname'], user['username'], user['email'])
@@ -61,157 +54,15 @@ def load_user(user_id):
     return None
 
 # ============================================================================
-# Savings Goal and Priority Queue
+# Initializing savings goal priority queue
 # ============================================================================
-
-# SavingsGoal class for priority queue
-class SavingsGoal:
-    def __init__(self, id, name, target_amount, current_amount, target_date, priority):
-        self.id = id
-        self.name = name
-        self.target_amount = target_amount
-        self.current_amount = current_amount
-        self.target_date = datetime.strptime(target_date, '%Y-%m-%d').date() if isinstance(target_date, str) else target_date
-        self.priority = priority
-
-    def __lt__(self, other):
-        if self.priority != other.priority:
-            return self.priority < other.priority
-        return self.target_date < other.target_date
-
-class SavingsGoalPriorityQueue:
-    def __init__(self):
-        self.queue = []
-
-    def add_goal(self, goal):
-        heapq.heappush(self.queue, goal)
-
-    def get_highest_priority_goal(self):
-        return heapq.heappop(self.queue) if self.queue else None
-
-    def peek_highest_priority_goal(self):
-        return self.queue[0] if self.queue else None
-
-    def update_goal(self, goal):
-        self.queue = [g for g in self.queue if g.id != goal.id]
-        heapq.heapify(self.queue)
-        heapq.heappush(self.queue, goal)
-
-    def get_all_goals(self):
-        return sorted(self.queue)
-
-    def clear(self):
-        self.queue.clear()
 
 # Global priority queue
 savings_goal_pq = SavingsGoalPriorityQueue()
 
 # ============================================================================
-# Database Initialization and Management
+# Routes to close db connection and clear flashes
 # ============================================================================
-
-def init_db():
-    """Initialize the database with all the tables"""
-    with app.app_context():
-        db = get_db()
-        with app.open_resource('schema.sql', mode='r') as f:
-            script = f.read()
-            if 'CREATE TABLE users' in script:
-                # Check if the users table already exists
-                table_exists = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
-                if not table_exists:
-                    # Execute the SQL script to create the users table
-                    db.executescript(script)
-                    
-            # Check if the expenses table exists
-            expense_table_exists = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='expenses'").fetchone()
-            if not expense_table_exists:
-                # Create the expenses table if it doesn't exist
-                db.execute('''
-                    CREATE TABLE expenses (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        date DATE,
-                        category TEXT,
-                        amount DECIMAL(10, 2),
-                        description TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users (id)
-                    )
-                ''')
-            
-            # Check if the incomes table exists
-            income_table_exists = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incomes'").fetchone()
-            if not income_table_exists:
-                # Create the incomes table if it doesn't exist
-                db.execute('''
-                    CREATE TABLE incomes (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        date DATE,
-                        category TEXT,
-                        amount DECIMAL(10, 2),
-                        description TEXT,
-                        frequency TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users (id)
-                    )
-                ''')
-            
-            # Check if the savings_goals table exists
-            savings_goals_table_exists = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='savings_goals'").fetchone()
-            if not savings_goals_table_exists:
-                # Create the savings_goals table if it doesn't exist
-                db.execute('''
-                    CREATE TABLE savings_goals (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        name TEXT,
-                        target_amount DECIMAL(10, 2),
-                        current_amount DECIMAL(10, 2),
-                        target_date DATE,
-                        priority INTEGER,
-                        FOREIGN KEY (user_id) REFERENCES users (id)
-                    )
-                ''')
-            else:
-                # Check if the priority column exists in the savings_goals table
-                column_exists = db.execute("PRAGMA table_info(savings_goals)").fetchall()
-                if 'priority' not in [column[1] for column in column_exists]:
-                    # Add the priority column if it doesn't exist
-                    db.execute('ALTER TABLE savings_goals ADD COLUMN priority INTEGER DEFAULT 3')
-
-            # Check if the recurring_transactions table exists
-            recurring_transactions_table_exists = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='recurring_transactions'").fetchone()
-            if not recurring_transactions_table_exists:
-                # Create the recurring_transactions table if it doesn't exist
-                db.execute('''
-                    CREATE TABLE recurring_transactions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id INTEGER,
-                        type TEXT,
-                        amount DECIMAL(10, 2),
-                        category TEXT,
-                        frequency TEXT,
-                        start_date DATE,
-                        end_date DATE,
-                        description TEXT,
-                        FOREIGN KEY (user_id) REFERENCES users (id)
-                    )
-                ''')
-
-
-            # Commit all changes to the database
-            db.commit()
-
-def get_db():
-    """Gets database connection"""
-    # Retrieve the database connection from the global object
-    db = getattr(g, '_database', None)
-    if db is None:
-        # Create a new database connection if one doesn't exist
-        db = g._database = sqlite3.connect(DATABASE)
-        # Set the row factory to return dict-like objects
-        db.row_factory = sqlite3.Row
-    return db
 
 @app.teardown_appcontext
 def close_connection(exception):
@@ -221,254 +72,6 @@ def close_connection(exception):
     if db is not None:
         # Close the database connection
         db.close()
-
-def clear_flashes():
-    """Clear flash messages from the session"""
-    # Remove flash messages from the session
-    session.pop('_flashes', None)
-
-# ============================================================================
-# User Authentication and Management Routes
-# ============================================================================
-
-@app.route('/')
-def home():
-    """renders homepage"""
-    # Clear any existing flash messages
-    clear_flashes()
-    return render_template('homepage.html')
-
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
-    """Handles user signup and rendering"""
-    # Clear flashes if not coming from signup page
-    referrer = request.referrer if request.referrer else 'None'
-    if referrer.split('/')[-1] != 'signup':
-        clear_flashes()
-
-    if request.method == 'POST':
-        # Retrieve form data
-        fullname = request.form['fullname']
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        confirm_password = request.form['confirm_password']
-
-        # Password validation
-        if password != confirm_password:
-            flash('Passwords do not match')
-            return render_template('signup.html', fullname=fullname, username=username, email=email)
-
-        # Check password complexity
-        if len(password) < 8:
-            flash('Password must be at least 8 characters long')
-            return render_template('signup.html', fullname=fullname, username=username, email=email)
-        if not any(char.isupper() for char in password):
-            flash('Password must contain at least one uppercase letter')
-            return render_template('signup.html', fullname=fullname, username=username, email=email)
-        if not any(char.islower() for char in password):
-            flash('Password must contain at least one lowercase letter')
-            return render_template('signup.html', fullname=fullname, username=username, email=email)
-        if not any(char.isdigit() for char in password):
-            flash('Password must contain at least one digit')
-            return render_template('signup.html', fullname=fullname, username=username, email=email)
-
-        db = get_db()
-        # Check if username or email already exists
-        existing_user = db.execute('SELECT * FROM users WHERE username = ? OR email = ?', (username, email)).fetchone()
-
-        if existing_user:
-            flash('Username or email already exists')
-            return render_template('signup.html', fullname=fullname, email=email)
-
-        # Hash password and insert new user into database
-        password_hash = generate_password_hash(password)
-        db.execute('INSERT INTO users (fullname, username, email, password) VALUES (?, ?, ?, ?)', (fullname, username, email, password_hash))
-        db.commit()
-
-        # Log in the new user
-        user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-        user_obj = User(user['id'], user['fullname'], user['username'], user['email'])
-        login_user(user_obj)
-
-        return redirect(url_for('security_questions'))
-
-    return render_template('signup.html')
-
-@app.route('/security_questions', methods=['GET', 'POST'])
-def security_questions():
-    """Fetches security question answer during signup"""
-    if request.method == 'POST':
-        # Retrieve security questions and answers
-        security_question_1 = request.form['security_question_1']
-        security_answer_1 = request.form['security_answer_1']
-        security_question_2 = request.form['security_question_2']
-        security_answer_2 = request.form['security_answer_2']
-
-        # Ensure security questions are different
-        if security_question_1 == security_question_2:
-            print("security questions are same")
-            flash('Please select different security questions')
-            return redirect(url_for('security_questions'))
-
-        # Hash security answers
-        hashed_answer_1 = generate_password_hash(security_answer_1)
-        hashed_answer_2 = generate_password_hash(security_answer_2)
-
-        # Update user's security questions and answers in the database
-        db = get_db()
-        db.execute('UPDATE users SET security_question_1 = ?, security_answer_1 = ?, security_question_2 = ?, security_answer_2 = ? WHERE id = ?',
-                   (security_question_1, hashed_answer_1, security_question_2, hashed_answer_2, current_user.id))
-        db.commit()
-
-        flash('Security questions updated successfully')
-        return redirect(url_for('home'))
-
-    return render_template('security_questions.html')
-
-@app.route('/reset_password', methods=['GET', 'POST'])
-@login_required
-def reset_password():
-    """Handles password reset and rendering"""
-    if request.method == 'POST':
-        new_password = request.form['new_password']
-        confirm_password = request.form['confirm_password']
-
-        # Validate new password
-        if new_password != confirm_password:
-            flash('Passwords do not match')
-            return redirect(url_for('reset_password'))
-
-        # Check password complexity
-        if len(new_password) < 8:
-            flash('Password must be at least 8 characters long')
-            return redirect(url_for('reset_password'))
-        if not any(char.isupper() for char in new_password):
-            flash('Password must contain at least one uppercase letter')
-            return redirect(url_for('reset_password'))
-        if not any(char.islower() for char in new_password):
-            flash('Password must contain at least one lowercase letter')
-            return redirect(url_for('reset_password'))
-        if not any(char.isdigit() for char in new_password):
-            flash('Password must contain at least one digit')
-            return redirect(url_for('reset_password'))
-
-        # Update the password in the database
-        hashed_password = generate_password_hash(new_password)
-        db = get_db()
-        db.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, current_user.id))
-        db.commit()
-
-        flash('Password reset successful')
-        return redirect(url_for('home'))
-
-    return render_template('reset_password.html')
-
-@app.route('/security_answers', methods=['GET', 'POST'])
-@login_required
-def security_answers():
-    """Fetches security question answers during password reset"""
-    if request.method == 'POST':
-        security_answer_1 = request.form['security_answer_1']
-        security_answer_2 = request.form['security_answer_2']
-
-        db = get_db()
-        user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
-
-        # Verify security answers
-        if not check_password_hash(user['security_answer_1'], security_answer_1) or \
-           not check_password_hash(user['security_answer_2'], security_answer_2):
-            flash('Incorrect security answers')
-            return redirect(url_for('security_answers'))
-
-        return redirect(url_for('reset_password'))
-
-    # Fetch security questions for the current user
-    db = get_db()
-    user = db.execute('SELECT * FROM users WHERE id = ?', (current_user.id,)).fetchone()
-    security_question_1 = user['security_question_1']
-    security_question_2 = user['security_question_2']
-
-    return render_template('security_answers.html', security_question_1=security_question_1, security_question_2=security_question_2)
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    """Handles user login and rendering"""
-    # Clear flashes if not coming from signup or login page
-    referrer = request.referrer if request.referrer else 'None'
-    if referrer.split('/')[-1] not in ['signup', 'login']:
-        clear_flashes()
-        
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-
-        db = get_db()
-        user = db.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
-
-        if user:
-            # Check if account is locked
-            if user['is_locked']:
-                lockout_time = datetime.strptime(user['lockout_time'], '%Y-%m-%d %H:%M:%S')
-                current_time = datetime.now()
-                remaining_time = lockout_time + timedelta(minutes=30) - current_time
-                if remaining_time.total_seconds() > 0:
-                    minutes, seconds = divmod(int(remaining_time.total_seconds()), 60)
-                    flash(f"Account locked. Try again in {minutes:02d}m:{seconds:02d}s")
-                    return redirect(url_for('login'))
-                else:
-                    # Unlock account if lockout period has passed
-                    db.execute('UPDATE users SET is_locked = 0, incorrect_attempts = 0, lockout_time = NULL WHERE id = ?', (user['id'],))
-                    db.commit()
-
-            # Verify password
-            if check_password_hash(user['password'], password):
-                user_obj = User(user['id'], user['fullname'], user['username'], user['email'])
-                login_user(user_obj)
-
-                # Check if security questions are set up
-                if not user['security_question_1'] or not user['security_question_2']:
-                    flash('Please set up security questions to proceed further')
-                    return redirect(url_for('security_questions'))
-
-                # Reset incorrect attempts on successful login
-                db.execute('UPDATE users SET incorrect_attempts = 0 WHERE id = ?', (user['id'],))
-                db.commit()
-
-                flash('Login successful')
-                return redirect(url_for('home'))
-            else:
-                # Increment incorrect attempts
-                incorrect_attempts = user['incorrect_attempts'] + 1
-                db.execute('UPDATE users SET incorrect_attempts = ? WHERE id = ?', (incorrect_attempts, user['id']))
-                db.commit()
-
-                remaining_attempts = 5 - incorrect_attempts
-                if incorrect_attempts >= 5:
-                    # Lock account after 5 incorrect attempts
-                    lockout_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    db.execute('UPDATE users SET is_locked = 1, lockout_time = ? WHERE id = ?', (lockout_time, user['id']))
-                    db.commit()
-                    flash("Account locked due to too many incorrect attempts. Try again after 30 minutes.")
-                else:
-                    flash(f"Invalid password. {remaining_attempts} attempt(s) remaining.")
-        else:
-            flash('Invalid User')
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    """Handles user logout and rendering"""
-    # Log out the current user
-    logout_user()
-    return redirect(url_for('home'))
-
-@app.route('/bad_access')
-def bad_access():
-    """Renders bad access page, if user tries to access unauthorized pages"""
-    # Redirect to login page for unauthorized access
-    return redirect(url_for('login'))
 
 # ============================================================================
 # Income and Expense Routes
@@ -489,7 +92,7 @@ def add_expense():
         user_id = current_user.id
         
         # Save the expense to the database
-        db = get_db()
+        db = get_db(app)
         db.execute('INSERT INTO expenses (user_id, date, category, amount, description) VALUES (?, ?, ?, ?, ?)',
                    (user_id, date, category, amount, description))
         db.commit()
@@ -519,7 +122,7 @@ def add_income():
         user_id = current_user.id
         
         # Save the income to the database
-        db = get_db()
+        db = get_db(app)
         db.execute('INSERT INTO incomes (user_id, date, category, amount, description, frequency) VALUES (?, ?, ?, ?, ?, ?)',
                    (user_id, date, category, amount, description, frequency))
         db.commit()
@@ -537,7 +140,7 @@ def add_income():
 def view_expenses():
     """Function to view expense"""
     # Retrieve all expenses for the current user
-    db = get_db()
+    db = get_db(app)
     expenses = db.execute('SELECT * FROM expenses WHERE user_id = ? ORDER BY date DESC', (current_user.id,)).fetchall()
     return render_template('expenses.html', expenses=expenses)
 
@@ -546,7 +149,7 @@ def view_expenses():
 def view_income():
     """Function to add income"""
     # Retrieve all income records for the current user
-    db = get_db()
+    db = get_db(app)
     incomes = db.execute('SELECT * FROM incomes WHERE user_id = ? ORDER BY date DESC', (current_user.id,)).fetchall()
     return render_template('income.html', incomes=incomes)
 
@@ -558,7 +161,7 @@ def load_savings_goals():
     """Load savings goals from the database into the priority queue"""
     global savings_goal_pq
     savings_goal_pq.clear()  # Clear existing goals in the queue
-    db = get_db()
+    db = get_db(app)
     goals = db.execute('SELECT * FROM savings_goals WHERE user_id = ?', (current_user.id,)).fetchall()
     for goal in goals:
         new_goal = SavingsGoal(
@@ -614,7 +217,7 @@ def add_savings_goal():
         return redirect(url_for('savings_goals'))
 
     # Add goal to database
-    db = get_db()
+    db = get_db(app)
     cursor = db.cursor()
     cursor.execute('INSERT INTO savings_goals (user_id, name, target_amount, current_amount, target_date, priority) VALUES (?, ?, ?, 0, ?, ?)',
                    (current_user.id, goal_name, target_amount, target_date, priority))
@@ -629,7 +232,7 @@ def add_savings_goal():
 
 def recalculate_savings_goals(user_id):
     """Recalculate progress for all savings goals based on income and expenses."""
-    db = get_db()
+    db = get_db(app)
     
     # Calculate total income and expenses
     total_income = db.execute('SELECT SUM(amount) as total FROM incomes WHERE user_id = ?', (user_id,)).fetchone()['total'] or 0
@@ -678,7 +281,7 @@ def update_savings_goal(goal_id):
     priority = int(request.form['priority'])
 
     # Update goal in database
-    db = get_db()
+    db = get_db(app)
     db.execute('UPDATE savings_goals SET name = ?, target_amount = ?, current_amount = ?, target_date = ?, priority = ? WHERE id = ? AND user_id = ?',
                (goal_name, target_amount, current_amount, target_date, priority, goal_id, current_user.id))
     db.commit()
@@ -694,7 +297,7 @@ def update_savings_goal(goal_id):
 def delete_savings_goal(goal_id):
     """Delete a savings goal."""
     # Delete goal from database
-    db = get_db()
+    db = get_db(app)
     db.execute('DELETE FROM savings_goals WHERE id = ? AND user_id = ?', (goal_id, current_user.id))
     db.commit()
 
@@ -721,228 +324,7 @@ def get_highest_priority_goal():
         })
     return jsonify({'message': 'No savings goals found'}), 404
 
-# ============================================================================
-# Financial Report Generation Routes and Functions
-# ============================================================================
 
-@app.route('/get_report', methods=['GET', 'POST'])
-@login_required
-def get_report():
-    """Handle report generation requests."""
-    if request.method == 'POST':
-        # Extract report parameters from form
-        start_date = request.form['start_date']
-        end_date = request.form['end_date']
-        report_type = request.form['report_type']
-        
-        # Generate report data
-        report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
-        
-        # Generate charts
-        income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
-        expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
-        
-        # Render report template
-        return render_template('report.html', 
-                               report_data=report_data, 
-                               income_chart=income_chart, 
-                               expense_chart=expense_chart,
-                               start_date=start_date,
-                               end_date=end_date,
-                               report_type=report_type,
-                               is_pdf=False)
-    
-    # If GET request, render the report form
-    return render_template('get_report.html')
-
-@app.route('/export_report/<format>', methods=['POST'])
-@login_required
-def export_report(format):
-    """Export report in specified format (PDF or CSV)."""
-    # Extract report parameters from form
-    start_date = request.form['start_date']
-    end_date = request.form['end_date']
-    report_type = request.form['report_type']
-    
-    # Generate report data
-    report_data = generate_report_data(current_user.id, start_date, end_date, report_type)
-    
-    if format == 'pdf':
-        try:
-            # Generate charts for PDF
-            income_chart = generate_chart(report_data['income_by_category'], 'Income by Category')
-            expense_chart = generate_chart(report_data['expenses_by_category'], 'Expenses by Category')
-            
-            # Generate PDF
-            pdf_buffer = generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart)
-            
-            # Send PDF file
-            return send_file(
-                pdf_buffer,
-                as_attachment=True,
-                download_name='financial_report.pdf',
-                mimetype='application/pdf'
-            )
-        except Exception as e:
-            app.logger.error(f"Error generating PDF report: {str(e)}")
-            flash('An error occurred while generating the PDF report. Please try again.', 'error')
-            return redirect(url_for('generate_report'))
-        
-    elif format == 'csv':
-        try:
-            # Generate CSV
-            csv_buffer = generate_csv_report(report_data)
-            
-            # Send CSV file
-            return send_file(
-                csv_buffer,
-                as_attachment=True,
-                download_name='financial_report.csv',
-                mimetype='text/csv'
-            )
-        except Exception as e:
-            app.logger.error(f"Error generating CSV report: {str(e)}")
-            flash('An error occurred while generating the CSV report. Please try again.', 'error')
-            return redirect(url_for('generate_report'))
-    
-    else:
-        flash('Invalid export format', 'error')
-        return redirect(url_for('generate_report'))
-    
-def generate_report_data(user_id, start_date, end_date, report_type):
-    """Generate report data based on user's financial records."""
-    db = get_db()
-    
-    # Fetch income data
-    income_data = db.execute('''
-        SELECT category, SUM(amount) as total
-        FROM incomes
-        WHERE user_id = ? AND date BETWEEN ? AND ?
-        GROUP BY category
-    ''', (user_id, start_date, end_date)).fetchall()
-    
-    # Fetch expense data
-    expense_data = db.execute('''
-        SELECT category, SUM(amount) as total
-        FROM expenses
-        WHERE user_id = ? AND date BETWEEN ? AND ?
-        GROUP BY category
-    ''', (user_id, start_date, end_date)).fetchall()
-    
-    # Fetch savings goals data
-    savings_data = db.execute('''
-        SELECT name, current_amount, target_amount
-        FROM savings_goals
-        WHERE user_id = ?
-    ''', (user_id,)).fetchall()
-    
-    # Prepare and return report data
-    return {
-        'income_by_category': {row['category']: row['total'] for row in income_data},
-        'expenses_by_category': {row['category']: row['total'] for row in expense_data},
-        'savings_goals': [{
-            'name': row['name'],
-            'current_amount': row['current_amount'],
-            'target_amount': row['target_amount'],
-            'progress': (row['current_amount'] / row['target_amount']) * 100 if row['target_amount'] > 0 else 0
-        } for row in savings_data],
-        'total_income': sum(row['total'] for row in income_data),
-        'total_expenses': sum(row['total'] for row in expense_data),
-    }
-
-def generate_chart(data, title):
-    """Generate a pie chart for the given data."""
-    plt.figure(figsize=(10, 6))
-    plt.pie(list(data.values()), labels=list(data.keys()), autopct='%1.1f%%')
-    plt.title(title)
-    
-    # Save chart to buffer
-    buffer = BytesIO()
-    plt.savefig(buffer, format='png')
-    buffer.seek(0)
-    image_png = buffer.getvalue()
-    buffer.close()
-    
-    # Encode chart image to base64
-    graphic = base64.b64encode(image_png).decode('utf-8')
-    plt.close()  # Close the figure to free up memory
-    return graphic
-
-def generate_pdf_report(report_data, start_date, end_date, report_type, income_chart, expense_chart):
-    """Generate a PDF report."""
-    font_config = FontConfiguration()
-    html_content = render_template(
-        'report.html',
-        report_data=report_data,
-        start_date=start_date,
-        end_date=end_date,
-        report_type=report_type,
-        income_chart=income_chart,
-        expense_chart=expense_chart,
-        is_pdf=True
-    )
-    
-    # Define CSS for PDF
-    css = CSS(string='''
-        @page {
-            size: letter;
-            margin: 1cm;
-        }
-        @media print {
-            .container {
-                margin: 0;
-                max-width: none;
-            }
-        }
-        ''',
-        font_config=font_config)
-    
-    # Generate PDF
-    pdf_file = HTML(string=html_content, base_url=request.url_root).write_pdf(stylesheets=[css], font_config=font_config)
-    
-    return BytesIO(pdf_file)
-
-def generate_csv_report(report_data):
-    """Generate a CSV report."""
-    buffer = BytesIO()
-    text_wrapper = TextIOWrapper(buffer, encoding='utf-8-sig', write_through=True)
-    writer = csv.writer(text_wrapper, dialect='excel', quoting=csv.QUOTE_MINIMAL)
-
-    # Write income data
-    writer.writerow(['Income by Category'])
-    writer.writerow(['Category', 'Amount'])
-    for category, amount in report_data['income_by_category'].items():
-        writer.writerow([category, f"${amount:.2f}"])
-
-    # Write expense data
-    writer.writerow([])
-    writer.writerow(['Expenses by Category'])
-    writer.writerow(['Category', 'Amount'])
-    for category, amount in report_data['expenses_by_category'].items():
-        writer.writerow([category, f"${amount:.2f}"])
-
-    # Write savings goals data
-    writer.writerow([])
-    writer.writerow(['Savings Goals'])
-    writer.writerow(['Goal', 'Current Amount', 'Target Amount', 'Progress'])
-    for goal in report_data['savings_goals']:
-        writer.writerow([
-            goal['name'],
-            f"${goal['current_amount']:.2f}",
-            f"${goal['target_amount']:.2f}",
-            f"{goal['progress']:.2f}%"
-        ])
-
-    # Write summary
-    writer.writerow([])
-    writer.writerow(['Summary'])
-    writer.writerow(['Total Income', f"${report_data['total_income']:.2f}"])
-    writer.writerow(['Total Expenses', f"${report_data['total_expenses']:.2f}"])
-    writer.writerow(['Net Savings', f"${(report_data['total_income'] - report_data['total_expenses']):.2f}"])
-
-    text_wrapper.detach()  # Prevent closing of BytesIO when TextIOWrapper is garbage collected
-    buffer.seek(0)
-    return buffer
 
 # ============================================================================
 # Budget Forecast and Management Routes
@@ -956,7 +338,7 @@ def budget_forecast():
         forecast_months = int(request.form['forecast_months'])
         
         # Get current user's financial data from the database
-        db = get_db()
+        db = get_db(app)
         total_income = db.execute('SELECT SUM(amount) as total FROM incomes WHERE user_id = ?', 
                                   (current_user.id,)).fetchone()['total'] or 0
         total_expenses = db.execute('SELECT SUM(amount) as total FROM expenses WHERE user_id = ?', 
@@ -1064,7 +446,7 @@ def budget_forecast():
 @login_required
 def budget_management():
     """Handle budget management page requests."""
-    db = get_db()
+    db = get_db(app)
     
     # Fetch summary data for the current month
     current_date = datetime.now()
@@ -1118,7 +500,7 @@ def budget_management():
 @login_required
 def recurring_transactions():
     """Display all recurring transactions for the current user."""
-    db = get_db()
+    db = get_db(app)
     transactions = db.execute('''
         SELECT * FROM recurring_transactions 
         WHERE user_id = ? 
@@ -1140,7 +522,7 @@ def add_recurring_transaction():
         end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date() if request.form['end_date'] else None
         description = request.form['description']
 
-        db = get_db()
+        db = get_db(app)
         try:
             # Insert new recurring transaction into database
             db.execute('''
@@ -1160,7 +542,7 @@ def add_recurring_transaction():
 @login_required
 def edit_recurring_transaction(transaction_id):
     """Handle editing an existing recurring transaction."""
-    db = get_db()
+    db = get_db(app)
     # Fetch the transaction to be edited
     transaction = db.execute('SELECT * FROM recurring_transactions WHERE id = ? AND user_id = ?', 
                              (transaction_id, current_user.id)).fetchone()
@@ -1198,7 +580,7 @@ def edit_recurring_transaction(transaction_id):
 @login_required
 def delete_recurring_transaction(transaction_id):
     """Handle deleting a recurring transaction."""
-    db = get_db()
+    db = get_db(app)
     try:
         # Delete the recurring transaction from the database
         db.execute('DELETE FROM recurring_transactions WHERE id = ? AND user_id = ?', (transaction_id, current_user.id))
@@ -1209,68 +591,8 @@ def delete_recurring_transaction(transaction_id):
     return redirect(url_for('recurring_transactions'))
 
 # ============================================================================
-# Database Backup and Restore Functions
+# Backing up database on exit
 # ============================================================================
-
-def backup_database():
-    """Create a backup of the current database."""
-    source = sqlite3.connect(DATABASE)
-    backup_dir = 'backups'
-    
-    # Create backup directory if it doesn't exist
-    if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
-    
-    # Generate timestamp for unique backup file name
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = os.path.join(backup_dir, f'database_backup_{timestamp}.db')
-    
-    # Create backup
-    destination = sqlite3.connect(backup_file)
-    with source:
-        source.backup(destination)
-    
-    # Close connections
-    destination.close()
-    source.close()
-    
-    # Maintain only the last 5 backups
-    backups = sorted([f for f in os.listdir(backup_dir) if f.startswith('database_backup_') and f.endswith('.db')])
-    while len(backups) > 5:
-        os.remove(os.path.join(backup_dir, backups.pop(0)))
-    
-    print(f"Database backed up to {backup_file}")
-
-def restore_from_backup():
-    """Restore the database from the most recent backup."""
-    backup_dir = 'backups'
-    
-    # Check if backup directory exists
-    if not os.path.exists(backup_dir):
-        print("No backups found.")
-        return
-    
-    # Get list of backup files
-    backups = [f for f in os.listdir(backup_dir) if f.startswith('database_backup_') and f.endswith('.db')]
-    if not backups:
-        print("No backups found.")
-        return
-    
-    # Get the most recent backup
-    latest_backup = max(backups)
-    backup_file = os.path.join(backup_dir, latest_backup)
-    
-    # Restore from backup
-    source = sqlite3.connect(backup_file)
-    destination = sqlite3.connect(DATABASE)
-    with source:
-        source.backup(destination)
-    
-    # Close connections
-    destination.close()
-    source.close()
-    
-    print(f"Database restored from {backup_file}")
 
 # Register the backup function to run when the application is about to exit
 @app.teardown_appcontext
@@ -1278,24 +600,6 @@ def backup_on_exit(exception):
     """Backup the database when the application context is torn down."""
     backup_database()
 
-# Add a route for manual backup
-@app.route('/backup', methods=['POST'])
-@login_required
-def manual_backup():
-    """Handle manual backup requests."""
-    backup_database()
-    flash('Database backed up successfully', 'success')
-    return redirect(url_for('budget_management'))
-
-# Add a route for manual restore
-@app.route('/restore', methods=['POST'])
-@login_required
-def manual_restore():
-    """Handle manual restore requests."""
-    restore_from_backup()
-    flash('Database restored from the latest backup', 'success')
-    return redirect(url_for('budget_management'))
-
 if __name__ == '__main__':
-    init_db()
+    init_db(app)
     app.run(debug=True)
