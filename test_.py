@@ -427,3 +427,202 @@ def test_view_income_unauthenticated(client):
     assert response.status_code == 200
     # checks if redirected to login page
     assert b'Login' in response.data
+# ============================================================================
+# Savings Goals tests
+# ============================================================================
+
+def test_view_savings_goals(logged_in_client):
+    """Test viewing savings goals"""
+    add_test_savings_goal(logged_in_client)
+
+    response = logged_in_client.get('/savings_goals')
+    assert response.status_code == 200
+    assert b'Savings Goals' in response.data
+    assert b'Test Goal' in response.data
+    assert b'$1000.00' in response.data
+    assert b'Priority: 3' in response.data
+
+    remove_all_savings_goals(logged_in_client)
+
+def test_add_savings_goal(logged_in_client):
+    """Test adding a savings goal"""
+    response = add_test_savings_goal(logged_in_client)
+    assert response.status_code == 200
+    assert b'Test Goal' in response.data
+    assert b'$1000.00' in response.data
+    assert b'Priority: 3' in response.data
+
+    # Verify that the goal is in the database
+    with app.app_context():
+        db = get_db(app)
+        goal = db.execute('SELECT * FROM savings_goals WHERE name = ?', ('Test Goal',)).fetchone()
+        assert goal is not None
+        assert goal['target_amount'] == 1000
+        assert goal['priority'] == 3
+
+    remove_all_savings_goals(logged_in_client)
+
+
+def test_savings_goals_unauthenticated(client):
+    """Test accessing savings goals routes without authentication"""
+    routes = [
+        '/savings_goals',
+    ]
+    for route in routes:
+        response = client.get(route, follow_redirects=True)
+        print("", response.data)
+        assert response.status_code == 200
+        assert b'Login' in response.data  # Should be redirected to login page
+
+# ============================================================================
+# Budget Forecast and Management tests
+# ============================================================================
+        
+def add_test_financial_data(logged_in_client):
+    """Add test financial data for the current user"""
+    with app.app_context():
+        db = get_db(app)
+        # Add income
+        db.execute('INSERT INTO incomes (user_id, date, category, amount, description, frequency) VALUES (?, ?, ?, ?, ?, ?)',
+                   (1, '2024-07-01', 'Salary', 5000, 'Monthly salary', 'monthly'))
+        # Add expense
+        db.execute('INSERT INTO expenses (user_id, date, category, amount, description) VALUES (?, ?, ?, ?, ?)',
+                   (1, '2024-07-15', 'Rent', 1500, 'Monthly rent'))
+        # Add recurring transaction
+        db.execute('INSERT INTO recurring_transactions (user_id, type, amount, category, frequency, start_date, end_date, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                   (1, 'expense', 100, 'Subscription', 'monthly', '2024-07-01', '2025-07-01', 'Streaming service'))
+        # Add savings goal
+        db.execute('INSERT INTO savings_goals (user_id, name, target_amount, current_amount, target_date, priority) VALUES (?, ?, ?, ?, ?, ?)',
+                   (1, 'Vacation', 3000, 1000, '2024-12-31', 2))
+        db.commit()
+
+def test_budget_forecast_page(logged_in_client):
+    """Test accessing the budget forecast page"""
+    response = logged_in_client.get('/budget_forecast')
+    assert response.status_code == 200
+    assert b'Budget Forecast' in response.data
+
+def test_generate_budget_forecast(logged_in_client):
+    """Test generating a budget forecast"""
+    add_test_financial_data(logged_in_client)
+    response = logged_in_client.post('/budget_forecast', data={
+        'forecast_months': '6',
+        'initial_balance': '1000',
+        'monthly_income': '5000',
+        'monthly_expenses': '3000',
+        'income_change': '2',
+        'expense_change': '1',
+        'savings_goal': '500',
+        'interest_rate': '1'
+    })
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert 'labels' in data
+    assert 'projected_balance' in data
+    assert 'projected_income' in data
+    assert 'projected_expenses' in data
+    assert 'projected_savings' in data
+    assert len(data['labels']) == 6  # 6 months forecast
+
+# ============================================================================
+# Recurring Transactions Management Routes
+# ============================================================================
+
+
+def add_recurring_transaction(user_id, transaction_type, amount, category, frequency, start_date, end_date, description):
+    """
+    Helper function to add a recurring transaction to the database.
+    
+    Args:
+    user_id (int): The ID of the user associated with the transaction.
+    transaction_type (str): The type of transaction ('income' or 'expense').
+    amount (float): The amount of the transaction.
+    category (str): The category of the transaction.
+    frequency (str): The frequency of the transaction (e.g., 'daily', 'weekly', 'monthly', 'yearly').
+    start_date (str): The start date of the transaction in 'YYYY-MM-DD' format.
+    end_date (str): The end date of the transaction in 'YYYY-MM-DD' format, or None if it's ongoing.
+    description (str): A description of the transaction.
+    
+    Returns:
+    int: The ID of the newly created recurring transaction.
+    """
+    with app.app_context():
+        db = get_db(app)
+        cursor = db.cursor()
+        cursor.execute('''
+            INSERT INTO recurring_transactions 
+            (user_id, type, amount, category, frequency, start_date, end_date, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, transaction_type, amount, category, frequency, start_date, end_date, description))
+        db.commit()
+        return cursor.lastrowid
+
+def remove_recurring_transaction(transaction_id=None, user_id=None):
+    """
+    Helper function to remove recurring transaction(s) from the database.
+    
+    Args:
+    transaction_id (int, optional): The ID of the specific transaction to remove.
+    user_id (int, optional): The ID of the user whose transactions should be removed.
+    
+    If both transaction_id and user_id are provided, it will remove the specific transaction for that user.
+    If only transaction_id is provided, it will remove that specific transaction.
+    If only user_id is provided, it will remove all transactions for that user.
+    If neither is provided, it will raise a ValueError.
+    
+    Returns:
+    int: The number of transactions removed.
+    """
+    with app.app_context():
+        db = get_db(app)
+        if transaction_id and user_id:
+            db.execute('DELETE FROM recurring_transactions WHERE id = ? AND user_id = ?', (transaction_id, user_id))
+        elif transaction_id:
+            db.execute('DELETE FROM recurring_transactions WHERE id = ?', (transaction_id,))
+        elif user_id:
+            db.execute('DELETE FROM recurring_transactions WHERE user_id = ?', (user_id,))
+        else:
+            raise ValueError("Either transaction_id or user_id must be provided")
+        
+        removed_count = db.total_changes
+        db.commit()
+        return removed_count
+
+def test_recurring_transactions_page(logged_in_client):
+    """Test accessing the recurring transactions page"""
+    response = logged_in_client.get('/recurring_transactions')
+    print(response.data)
+    assert response.status_code == 200
+    assert b'Recurring Transactions' in response.data
+
+def test_add_recurring_transaction_page(logged_in_client):
+    """Test accessing the add recurring transaction page"""
+    response = logged_in_client.get('/add_recurring_transaction')
+    assert response.status_code == 200
+    assert b'Add Recurring Transaction' in response.data
+
+def test_add_recurring_transaction(logged_in_client):
+    """Test adding a new recurring transaction"""
+    response = logged_in_client.post('/add_recurring_transaction', data={
+        'type': 'income',
+        'amount': '500',
+        'category': 'Freelance',
+        'frequency': 'monthly',
+        'start_date': '2024-08-01',
+        'end_date': '2025-08-01',
+        'description': 'Monthly freelance work'
+    }, follow_redirects=True)
+    assert response.status_code == 200
+    assert b'Freelance' in response.data
+
+def test_delete_recurring_transaction(logged_in_client):
+    """Test deleting a recurring transaction"""
+
+    with app.app_context():
+        db = get_db(app)
+        transaction = db.execute('SELECT id FROM recurring_transactions WHERE category = ?', ('Freelance',)).fetchone()
+    
+    response = logged_in_client.post(f'/delete_recurring_transaction/{transaction["id"]}', follow_redirects=True)
+    print("trnx id", transaction['id'])
+    assert response.status_code == 200
+    assert b'Freelance' not in response.data
