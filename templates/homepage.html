@@ -19,12 +19,12 @@
             <section>
                 <h2>Budget Management</h2>
                 <p>Create and manage budgets to take control of your finances. Set spending limits for different categories and track your progress towards your financial goals.</p>
-                <a href="" class="button">Manage Budgets</a>
+                <a href="{{ url_for('budget_management') }}" class="button">Manage Budgets</a>
             </section>
             <section>
                 <h2>Expense Insights</h2>
                 <p>Gain valuable insights into your spending patterns. Analyze your expenses, identify areas for optimization, and make informed financial decisions.</p>
-                <a href="" class="button">View Insights</a>
+                <a href="{{ url_for('reports.get_report') }}" class="button">View Insights</a>
             </section>
             </div>
             </div>

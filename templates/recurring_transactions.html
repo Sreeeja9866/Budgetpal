@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recurring Transactions</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='header.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='recurring_transactions.css') }}">
+</head>
+<body>
+    {% include "header.html" %}
+    <main>
+        <div class="container">
+            <h1>Recurring Transactions</h1>
+            <a href="{{ url_for('add_recurring_transaction') }}" class="btn btn-primary">Add New Recurring Transaction</a>
+            
+            {% if transactions %}
+                <table class="transactions-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Category</th>
+                            <th>Frequency</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction.type|capitalize }}</td>
+                                <td>${{ "%.2f"|format(transaction.amount) }}</td>
+                                <td>{{ transaction.category }}</td>
+                                <td>{{ transaction.frequency|capitalize }}</td>
+                                <td>{{ transaction.start_date }}</td>
+                                <td>{{ transaction.end_date or 'N/A' }}</td>
+                                <td class="action-buttons">
+                                    <a href="{{ url_for('edit_recurring_transaction', transaction_id=transaction.id) }}" class="btn btn-edit">Edit</a>
+                                    <form action="{{ url_for('delete_recurring_transaction', transaction_id=transaction.id) }}" method="post" style="display:inline;">
+                                        <button type="submit" class="btn btn-delete" onclick="return confirm('Are you sure you want to delete this transaction?');">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No recurring transactions found.</p>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

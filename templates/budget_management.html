@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='header.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='budget_management.css') }}">
+</head>
+<body>
+    {% include "header.html" %}
+    <main>
+        <div class="container">
+            <h1>Budget Management</h1>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="card summary-card">
+                <h2>Monthly Summary (Current Month)</h2>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="label">Total Income</div>
+                        <div class="value">${{ "%.2f"|format(summary.total_income) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Total Expenses</div>
+                        <div class="value">${{ "%.2f"|format(summary.total_expenses) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Balance</div>
+                        <div class="value">${{ "%.2f"|format(summary.balance) }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Recurring Transactions</div>
+                        <div class="value">{{ summary.recurring_transactions }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="label">Savings Goals</div>
+                        <div class="value">{{ summary.savings_goals }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-grid">
+                <div class="card">
+                    <h2>Income and Expenses</h2>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('view_income') }}" class="btn btn-primary">View Income</a>
+                        <a href="{{ url_for('view_expenses') }}" class="btn btn-primary">View Expenses</a>
+                        <a href="{{ url_for('add_income') }}" class="btn btn-secondary">Add Income</a>
+                        <a href="{{ url_for('add_expense') }}" class="btn btn-secondary">Add Expense</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Recurring Transactions</h2>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('recurring_transactions') }}" class="btn btn-primary">Manage Recurring Transactions</a>
+                        <a href="{{ url_for('add_recurring_transaction') }}" class="btn btn-secondary">Add Recurring Transaction</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Savings Goals</h2>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('savings_goals') }}" class="btn btn-primary">Manage Savings Goals</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Budget Forecast</h2>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('budget_forecast') }}" class="btn btn-primary">Generate Forecast</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Reports</h2>
+                    <div class="action-buttons">
+                        <a href="{{ url_for('reports.get_report') }}" class="btn btn-primary">Generate Report</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Data Management</h2>
+                    <div class="action-buttons">
+                        <form action="{{ url_for('backup.manual_backup') }}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn-primary">Backup Data</button>
+                        </form>
+                        <form action="{{ url_for('backup.manual_restore') }}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn-secondary" onclick="return confirm('Are you sure you want to restore from the latest backup? This will overwrite current data.');">Restore Data</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

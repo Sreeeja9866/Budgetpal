@@ -1,0 +1,130 @@
+body {
+    font-family: 'Roboto', Arial, sans-serif;
+    background-color: #f5f7fa;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 20px;
+}
+
+.container {
+    max-width: 600px;
+    width: 100%;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    padding: 40px;
+}
+
+h2 {
+    color: #3f51b5;
+    margin-top: 0;
+    margin-bottom: 30px;
+    font-size: 28px;
+    text-align: center;
+}
+
+h2 i {
+    margin-right: 10px;
+    color: #3f51b5;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+label {
+    font-size: 18px;
+    font-weight: bold;
+    color: #3f51b5;
+    display: block;
+    margin-bottom: 10px;
+}
+
+label i {
+    margin-right: 8px;
+    color: #3f51b5;
+}
+
+input[type="text"],
+select {
+    width: 100%;
+    padding: 12px 20px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: #ffffff;
+    font-size: 16px;
+    color: #333;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    box-sizing: border-box;
+}
+
+input[type="text"]:focus,
+select:focus {
+    outline: none;
+    border-color: #3f51b5;
+    box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.2);
+}
+
+button {
+    background-color: #3f51b5;
+    color: white;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #283593;
+}
+
+button i {
+    margin-right: 8px;
+}
+
+.flatpickr-calendar {
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    background-color: #fff;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.selected:focus,
+.flatpickr-day.selected:hover {
+    background-color: #3f51b5;
+    border-color: #3f51b5;
+}
+
+@media (max-width: 600px) {
+    .container {
+        padding: 30px;
+    }
+
+    h2 {
+        font-size: 24px;
+    }
+
+    label {
+        font-size: 16px;
+    }
+
+    input[type="text"],
+    select,
+    button {
+        font-size: 16px;
+    }
+}

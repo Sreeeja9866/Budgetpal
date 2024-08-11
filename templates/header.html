@@ -5,9 +5,9 @@
     <li><a href="{{ url_for('view_income')}}">Income</a></li>
     <li><a href="{{ url_for('view_expenses') }}">Expenses</a></li>
     
-    <li><a href="">Budgets</a></li>
-    <li><a href="">Reports</a></li>
-    <!-- <li><a href="">Settings</a></li> -->
+    <li><a href="{{ url_for('savings_goals') }}">Savings</a></li>
+    <li><a href="{{ url_for('reports.get_report') }}">Reports</a></li>
+    <li><a href="{{ url_for('budget_management') }}">Budget Manager</a></li>
     {% if current_user.is_authenticated %}
     {% if current_user.type == 'admin' %}
           <li id="admin-option"><a href="{{ url_for('admin_panel') }}">Go To Admin View&nbsp;<i class="fas fa-sign-out-alt"></i></a></li>
@@ -19,14 +19,14 @@
         <ul class="dropdown-menu">
           <li><img src="../static/user.png" alt="Profile Picture" class="profile-pic"></li>
           <li><span class="email">{{ current_user.email }}</span></li>
-          <li><a href="{{ url_for('security_answers')}}">Reset Password</a></li>
-          <li><a href="{{ url_for('logout') }}">Logout&nbsp;<i class="fas fa-sign-out-alt"></i></a></li>
+          <li><a href="{{ url_for('auth.security_answers')}}">Reset Password</a></li>
+          <li><a href="{{ url_for('auth.logout') }}">Logout&nbsp;<i class="fas fa-sign-out-alt"></i></a></li>
         </ul>
       </li>
-    {% elif request.path == url_for('login') %}
-      <li id="auth-option"><a href="{{ url_for('signup') }}">Signup <i class="fas fa-user-plus"></i></a></li>
+    {% elif request.path == url_for('auth.login') %}
+      <li id="auth-option"><a href="{{ url_for('auth.signup') }}">Signup <i class="fas fa-user-plus"></i></a></li>
     {% else %}
-      <li id="auth-option"><a href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i>Login </i></a></li>
+      <li id="auth-option"><a href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt"></i>Login </i></a></li>
     {% endif %}
   </ul>
 </header>

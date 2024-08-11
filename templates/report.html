@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Report</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='header.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='report.css') }}">
+
+</head>
+<body>
+    {% if not is_pdf %}
+    {% include "header.html" %}
+    {% endif %}
+    <main>
+        <div class="container">
+            <header class="report-header">
+                <h1>Financial Report</h1>
+                <div class="report-meta">
+                    <p class="report-period">Period: {{ start_date }} to {{ end_date }}</p>
+                    <p class="report-type">Report Type: {{ report_type }}</p>
+                </div>
+            </header>
+
+            <section class="summary-section">
+                <h2>Summary</h2>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <h3>Total Income</h3>
+                        <p class="amount income">${{ "%.2f"|format(report_data['total_income']) }}</p>
+                    </div>
+                    <div class="summary-item">
+                        <h3>Total Expenses</h3>
+                        <p class="amount expense">${{ "%.2f"|format(report_data['total_expenses']) }}</p>
+                    </div>
+                    <div class="summary-item">
+                        <h3>Net Savings</h3>
+                        <p class="amount savings">${{ "%.2f"|format(report_data['total_income'] - report_data['total_expenses']) }}</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="income-section">
+                <h2>Income by Category</h2>
+                <div class="chart-and-table">
+                    <div class="chart">
+                        <img src="data:image/png;base64,{{ income_chart }}" alt="Income Chart">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category, amount in report_data['income_by_category'].items() %}
+                                <tr>
+                                    <td>{{ category }}</td>
+                                    <td>${{ "%.2f"|format(amount) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="expenses-section">
+                <h2>Expenses by Category</h2>
+                <div class="chart-and-table">
+                    <div class="chart">
+                        <img src="data:image/png;base64,{{ expense_chart }}" alt="Expense Chart">
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category, amount in report_data['expenses_by_category'].items() %}
+                                <tr>
+                                    <td>{{ category }}</td>
+                                    <td>${{ "%.2f"|format(amount) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section class="savings-goals-section">
+                <h2>Savings Goals</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Goal</th>
+                                <th>Current Amount</th>
+                                <th>Target Amount</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for goal in report_data['savings_goals'] %}
+                            <tr>
+                                <td>{{ goal['name'] }}</td>
+                                <td>${{ "%.2f"|format(goal['current_amount']) }}</td>
+                                <td>${{ "%.2f"|format(goal['target_amount']) }}</td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress" style="width: {{ goal['progress'] }}%"></div>
+                                    </div>
+                                    <span class="progress-text">{{ "%.2f"|format(goal['progress']) }}%</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            {% if not is_pdf %}
+            <div class="export-buttons">
+                <!-- <form action="" method="POST">
+                    <input type="hidden" name="start_date" value="{{ start_date }}">
+                    <input type="hidden" name="end_date" value="{{ end_date }}">
+                    <input type="hidden" name="report_type" value="{{ report_type }}">
+                    <button type="submit">Export as PDF</button>
+                </form> -->
+                <form action="{{ url_for('reports.export_report', format='csv') }}" method="POST">
+                    <input type="hidden" name="start_date" value="{{ start_date }}">
+                    <input type="hidden" name="end_date" value="{{ end_date }}">
+                    <input type="hidden" name="report_type" value="{{ report_type }}">
+                    <button type="submit">Export as CSV</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+</body>
+</html>

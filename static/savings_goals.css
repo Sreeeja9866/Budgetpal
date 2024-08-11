@@ -1,0 +1,134 @@
+body {
+    font-family: 'Roboto', Arial, sans-serif;
+    background-color: #f5f7fa;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+}
+
+.container {
+    max-width: 900px;
+    width: 100%;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+}
+
+h2, h3 {
+    color: #1a237e;
+    margin-top: 0;
+    margin-bottom: 30px;
+    font-size: 28px;
+    text-align: center;
+}
+
+h3 {
+    font-size: 24px;
+    margin-top: 40px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    font-size: 18px;
+    font-weight: bold;
+    color: #1a237e;
+    display: block;
+    margin-bottom: 10px;
+}
+
+input[type="text"],
+input[type="number"] {
+    width: 100%;
+    max-width: 800px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 25px;
+    background-color: #f5f5f5;
+    font-size: 16px;
+    color: #333;
+    /* margin: 0 20px; */
+}
+
+button {
+    background-color: #3f51b5;
+    color: white;
+    padding: 16px 20px;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    width: 100%;
+    max-width: 850px;
+    font-size: 18px;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+    /* margin: 0 20px; */
+}
+
+button:hover {
+    background-color: #283593;
+}
+
+.savings-goal-item {
+    background-color: #f5f5f5;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.savings-goal-item h4 {
+    color: #1a237e;
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    background-color: #e0e0e0;
+    border-radius: 10px;
+    height: 20px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.progress {
+    background-color: #4caf50;
+    height: 100%;
+    transition: width 0.5s ease;
+}
+
+.progress-text {
+    text-align: right;
+    font-weight: bold;
+    color: #1a237e;
+    margin-top: 5px;
+}
+
+.flashes {
+    list-style-type: none;
+    padding: 0;
+    margin: 20px 0;
+    text-align: center;
+  }
+  
+  .flashes li {
+    background-color: #c5cae9;
+    color: #1a237e;
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 16px;
+    margin-bottom: 10px;
+    display: inline-block;
+  }
