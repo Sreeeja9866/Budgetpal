@@ -19,7 +19,7 @@
 {% endwith %}
     <div class="container">
         <h2>Sign Up</h2>
-        <form action="{{ url_for('signup') }}" method="POST">
+        <form action="{{ url_for('auth.signup') }}" method="POST">
             <input type="text" name="fullname" placeholder="Full Name" required>
             <input type="text" name="username" placeholder="Username" required>
             <input type="email" name="email" placeholder="Email" required>
@@ -28,7 +28,7 @@
             <button type="submit">Sign Up</button>
         </form>
         <div class="login-link">
-            Already have an account? <a href="{{ url_for('login') }}">Login</a>
+            Already have an account? <a href="{{ url_for('auth.login') }}">Login</a>
         </div>
     </div>
 </body>

@@ -426,7 +426,8 @@ def test_view_income_unauthenticated(client):
     response = client.get('/income', follow_redirects=True)
     assert response.status_code == 200
     # checks if redirected to login page
-    assert b'Login' in response.data
+    assert b'Login' in response.data  
+
 # ============================================================================
 # Savings Goals tests
 # ============================================================================
@@ -625,4 +626,4 @@ def test_delete_recurring_transaction(logged_in_client):
     response = logged_in_client.post(f'/delete_recurring_transaction/{transaction["id"]}', follow_redirects=True)
     print("trnx id", transaction['id'])
     assert response.status_code == 200
-    assert b'Freelance' not in response.data
+    assert b'Freelance' not in response.data

@@ -13,6 +13,14 @@
         <div class="container">
             <h1>Budget Management</h1>
 
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
             <div class="card summary-card">
                 <h2>Monthly Summary (Current Month)</h2>
                 <div class="summary-grid">
@@ -75,7 +83,19 @@
                 <div class="card">
                     <h2>Reports</h2>
                     <div class="action-buttons">
-                        <a href="{{ url_for('get_report') }}" class="btn btn-primary">Generate Report</a>
+                        <a href="{{ url_for('reports.get_report') }}" class="btn btn-primary">Generate Report</a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Data Management</h2>
+                    <div class="action-buttons">
+                        <form action="{{ url_for('backup.manual_backup') }}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn-primary">Backup Data</button>
+                        </form>
+                        <form action="{{ url_for('backup.manual_restore') }}" method="post" style="display: inline;">
+                            <button type="submit" class="btn btn-secondary" onclick="return confirm('Are you sure you want to restore from the latest backup? This will overwrite current data.');">Restore Data</button>
+                        </form>
                     </div>
                 </div>
             </div>

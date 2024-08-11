@@ -19,7 +19,7 @@
 {% endwith %}
     <div class="container">
         <h2>Security Questions</h2>
-        <form action="{{ url_for('security_questions') }}" method="POST">
+        <form action="{{ url_for('auth.security_questions') }}" method="POST">
             <div class="form-group">
                 <label>Security Question 1:</label>
                 <select name="security_question_1" required>

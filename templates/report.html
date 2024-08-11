@@ -129,13 +129,13 @@
 
             {% if not is_pdf %}
             <div class="export-buttons">
-                <!-- <form action="{{ url_for('export_report', format='pdf') }}" method="POST">
+                <!-- <form action="" method="POST">
                     <input type="hidden" name="start_date" value="{{ start_date }}">
                     <input type="hidden" name="end_date" value="{{ end_date }}">
                     <input type="hidden" name="report_type" value="{{ report_type }}">
                     <button type="submit">Export as PDF</button>
                 </form> -->
-                <form action="{{ url_for('export_report', format='csv') }}" method="POST">
+                <form action="{{ url_for('reports.export_report', format='csv') }}" method="POST">
                     <input type="hidden" name="start_date" value="{{ start_date }}">
                     <input type="hidden" name="end_date" value="{{ end_date }}">
                     <input type="hidden" name="report_type" value="{{ report_type }}">
