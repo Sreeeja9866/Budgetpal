@@ -1,0 +1,65 @@
+name: Python application CI/CD
+
+on:
+  push:
+    branches:
+      - '*'  # matches every branch
+      - '*/*'  # matches every branch containing a single '/'
+      - '**'  # matches every branch
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+      - name: Create and activate virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Test with pytest
+        run: |
+          pytest
+      - name: Upload test results
+        uses: actions/upload-artifact@v2
+        with:
+          name: pytest-results-ubuntu
+          path: pytest-results
+        if: ${{ always() }}  # This ensures that test results are always uploaded, even if tests fail
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+      - name: Create and activate virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: install weasyprint
+        run: |
+          export PKG_CONFIG_PATH="/usr/local/opt/libffi/lib/pkgconfig:/usr/local/opt/pango/lib/pkgconfig:/usr/local/opt/cairo/lib/pkgconfig:/usr/local/opt/gdk-pixbuf/lib/pkgconfig:/usr/local/opt/glib/lib/pkgconfig:/usr/local/opt/gobject-introspection/lib/pkgconfig:/usr/local/opt/gtk+3/lib/pkgconfig"
+          export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+          export DYLD_LIBRARY_PATH="/usr/local/lib:$DYLD_LIBRARY_PATH"
+          pip install gobject
+      - name: Test with pytest
+        run: |
+          pytest
